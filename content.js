@@ -2,21 +2,28 @@
 let menu = null;
 let activeInput = null;
 let promptsData = [];
+let allPromptsData = []; // 存储所有提示词
+let currentMode = { id: 'default', name: 'Mode' }; // 当前选中的模式
 let selectedIndex = -1; // 当前选中的项目索引
 let isMenuActive = false; // 跟踪菜单是否激活
 let isRecentPaste = false; // 跟踪是否刚刚粘贴了内容
 let lastInputTime = 0; // 上次输入的时间
 const PASTE_COOLDOWN = 1000; // 粘贴后的冷却时间（毫秒）
 
-// 加载提示词数据
+// 加载提示词数据和当前模式
 function loadPrompts() {
-  chrome.storage.local.get('prompts', (result) => {
-    if (result.prompts) {
-      promptsData = result.prompts;
-    } else {
-      // 使用默认提示词
-      promptsData = [];
-      chrome.storage.local.set({ prompts: promptsData });
+  chrome.storage.local.get(['prompts', 'currentMode'], (result) => {
+    // 保存所有提示词
+    allPromptsData = result.prompts || [];
+    
+    // 获取当前模式
+    currentMode = result.currentMode || { id: 'default', name: 'Mode' };
+    
+    // 根据当前模式过滤提示词
+    promptsData = allPromptsData.filter(p => (p.modeId || 'default') === currentMode.id);
+    
+    if (allPromptsData.length === 0) {
+      chrome.storage.local.set({ prompts: [] });
     }
   });
 }
@@ -233,50 +240,56 @@ function showMenu(input) {
   const isPerplexity = window.location.href.includes('perplexity.ai');
   const isChatGPT = window.location.href.includes('chatgpt.com');
   
-  // 重置选中索引
-  selectedIndex = 0;
+  // 重新加载当前模式的提示词
+  loadPrompts();
   
-  // 更新菜单显示
-  updateMenuDisplay();
-  
-  // 定位菜单到斜杠位置
-  positionMenu(input);
+  // 等待加载完成后再显示
+  setTimeout(() => {
+    // 重置选中索引
+    selectedIndex = 0;
+    
+    // 更新菜单显示
+    updateMenuDisplay();
+    
+    // 定位菜单到斜杠位置
+    positionMenu(input);
 
-  // 对于Perplexity和ChatGPT使用不同的显示策略  
-  if (isPerplexity || isChatGPT) {
-    // 确保菜单被添加到DOM
-    if (!document.body.contains(menu)) {
-      document.body.appendChild(menu);
+    // 对于Perplexity和ChatGPT使用不同的显示策略  
+    if (isPerplexity || isChatGPT) {
+      // 确保菜单被添加到DOM
+      if (!document.body.contains(menu)) {
+        document.body.appendChild(menu);
+      }
+      
+      // 显示菜单
+      menu.style.display = 'block';
+      menu.style.zIndex = '999999'; // 使用极高的z-index确保可见
+      
+      // 尝试多次显示以确保不被其他元素覆盖
+      let showAttempts = 0;
+      const ensureVisible = () => {
+        if (showAttempts < 5) {
+          menu.style.display = 'block';
+          // 确保菜单处于最顶层
+          document.body.appendChild(menu);
+          showAttempts++;
+          setTimeout(ensureVisible, 100);
+        }
+      };
+      ensureVisible();
+    } else {
+      // 标准显示逻辑
+      menu.style.display = 'block';
     }
     
-    // 显示菜单
-    menu.style.display = 'block';
-    menu.style.zIndex = '999999'; // 使用极高的z-index确保可见
+    isMenuActive = true;
     
-    // 尝试多次显示以确保不被其他元素覆盖
-    let showAttempts = 0;
-    const ensureVisible = () => {
-      if (showAttempts < 5) {
-        menu.style.display = 'block';
-        // 确保菜单处于最顶层
-        document.body.appendChild(menu);
-        showAttempts++;
-        setTimeout(ensureVisible, 100);
-      }
-    };
-    ensureVisible();
-  } else {
-    // 标准显示逻辑
-    menu.style.display = 'block';
-  }
-  
-  isMenuActive = true;
-  
-  // 阻止输入字段的默认自动完成
-  if (input.autocomplete) {
-    input.dataset.originalAutocomplete = input.autocomplete;
-    input.autocomplete = 'off';
-  }
+    // 阻止输入字段的默认自动完成
+    if (input.autocomplete) {
+      input.dataset.originalAutocomplete = input.autocomplete;
+      input.autocomplete = 'off';
+    }
+  }, 100); // 给Chrome storage一些时间来加载数据
 }
 
 // 选中菜单项
@@ -1248,8 +1261,9 @@ function init() {
   
   // 监听存储变化事件
   chrome.storage.onChanged.addListener((changes) => {
-    if (changes.prompts) {
-      promptsData = changes.prompts.newValue;
+    if (changes.prompts || changes.currentMode) {
+      // 重新加载提示词和模式
+      loadPrompts();
     }
   });
   
