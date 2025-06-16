@@ -30,8 +30,9 @@
     
     .action-buttons {
       display: flex;
-      gap: 10px;
+      gap: 12px;
       margin-bottom: 15px;
+      width: 100%;
     }
     
     .add-button, .export-button, .import-button {
@@ -44,10 +45,127 @@
       cursor: pointer;
       font-size: 14px;
       flex: 1;
+      min-width: 0;
+      box-sizing: border-box;
     }
     
     .add-button:hover, .export-button:hover, .import-button:hover {
       background-color: #3b78e7;
+    }
+    
+    /* Mode下拉菜单样式 */
+    .mode-dropdown {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    /* 让下拉菜单相对于整个按钮组定位 */
+    .action-buttons {
+      position: relative;
+    }
+
+    .mode-button {
+      padding: 10px 15px;
+      background-color: #4285f4;
+      color: white;
+      text-align: center;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+
+    .mode-button:hover {
+      background-color: #3b78e7;
+    }
+
+    .mode-dropdown-content {
+      display: none;
+      position: absolute;
+      top: calc(100% + 5px);
+      left: 0;
+      right: 0;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      z-index: 1000;
+      box-sizing: border-box;
+    }
+
+    .mode-dropdown.active .mode-dropdown-content {
+      display: block;
+    }
+
+    .mode-dropdown-item {
+      padding: 10px 15px;
+      cursor: pointer;
+      border-bottom: 1px solid #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    .mode-dropdown-item:last-child {
+      border-bottom: none;
+    }
+
+    .mode-dropdown-item:hover {
+      background-color: #f5f5f5;
+    }
+
+    .add-mode-item {
+      background-color: #f8f9fa;
+      font-weight: bold;
+      color: #4285f4;
+    }
+
+    .add-mode-input {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .add-mode-input input {
+      flex: 1;
+      padding: 6px 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .add-mode-input button {
+      padding: 6px 12px;
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .selected-indicator {
+      color: #4285f4;
+      font-weight: bold;
+    }
+
+    .chevron-down {
+      width: 16px;
+      height: 16px;
+      transition: transform 0.2s;
+    }
+
+    .mode-dropdown.active .chevron-down {
+      transform: rotate(180deg);
     }
     
     .prompt-item {
@@ -69,18 +187,12 @@
       justify-content: center;
       cursor: pointer;
       color: #999;
-      font-size: 14px;
+      font-size: 16px;
       transition: color 0.2s;
     }
     
     .pinned-button:hover {
       color: #1890ff;
-    }
-    
-    .pinned-button svg {
-      width: 20px;
-      height: 20px;
-      vertical-align: middle;
     }
     
     .prompt-info {
@@ -213,7 +325,19 @@
     </div>
     
     <div class="action-buttons">
-      <button id="add-prompt-button" class="add-button">Add</button>
+      <div class="mode-dropdown" id="mode-dropdown">
+        <button id="mode-button" class="mode-button">
+          <span id="mode-text">Mode</span>
+          <svg class="chevron-down" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7 10l5 5 5-5z"/>
+          </svg>
+        </button>
+        <div class="mode-dropdown-content" id="mode-dropdown-content">
+          <div class="mode-dropdown-item add-mode-item" id="add-mode-item">
+            <span id="add-mode-text">+ Add Mode</span>
+          </div>
+        </div>
+      </div>
       <button id="export-button" class="export-button">Export</button>
       <button id="import-button" class="import-button">Import</button>
     </div>
@@ -228,6 +352,7 @@
     
     <form id="prompt-editor">
       <input type="hidden" id="prompt-id">
+      <input type="hidden" id="prompt-mode-id">
       
       <div class="form-group">
         <label for="prompt-name"></label>
@@ -239,10 +364,10 @@
         <textarea id="prompt-content" placeholder="Prompts" required></textarea>
       </div>
       
-      <div class="form-buttons">
-        <button type="submit" id="save-button" class="form-button">保存</button>
-        <button type="button" id="cancel-button" class="form-button cancel">关闭</button>
-      </div>
+              <div class="form-buttons">
+          <button type="submit" id="save-button" class="form-button">保存</button>
+          <button type="button" id="cancel-button" class="form-button cancel">关闭</button>
+        </div>
     </form>
   </div>
 
