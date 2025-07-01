@@ -49,4 +49,17 @@ The Slash Command Prompter is a browser extension designed to enhance productivi
 ## Contributing
 Contributions are welcome! Please feel free to submit issues and pull requests.
 
+## 2.0 版本新增功能
+
+### 多模式管理
+- 支持自定义多个"模式"，如：工作、学习、生活等。
+- 每个模式下可独立管理、分组不同的提示词。
+- 模式之间切换互不影响，方便分类和专注不同场景。
+- 支持模式的添加、编辑、删除、排序（上移）。
+- 导入/导出、批量管理均支持按模式分组。
+
+### 其他优化
+- 修复提示词上移仅在当前模式内有效的bug。
+- 优化斜杠菜单触发逻辑，避免误触发。
+
 
