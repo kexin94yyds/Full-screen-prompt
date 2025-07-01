@@ -303,7 +303,9 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // 添加鼠标悬停事件以显示/隐藏置顶按钮
       promptItem.addEventListener('mouseenter', function() {
-        if (index > 0) { // 只有非第一个项目才显示上移按钮
+        // 只有在当前模式中非第一个项目才显示上移按钮
+        // 这里的index就是在过滤后数组中的索引，直接使用即可
+        if (index > 0) {
           pinButton.style.display = 'flex';
         }
       });
@@ -941,18 +943,35 @@ document.addEventListener('DOMContentLoaded', function() {
   function pinPrompt(id) {
     chrome.storage.local.get('prompts', function(data) {
       const prompts = data.prompts || [];
-      const index = prompts.findIndex(p => p.id === id);
       
-      if (index > 0) {
-        // 交换当前提示词与上一个提示词的位置
-        const temp = prompts[index];
-        prompts[index] = prompts[index - 1];
-        prompts[index - 1] = temp;
+      // 获取当前模式的所有提示词及其在全局数组中的索引
+      const currentModePrompts = [];
+      prompts.forEach((prompt, index) => {
+        if ((prompt.modeId || 'default') === currentMode.id) {
+          currentModePrompts.push({ prompt, globalIndex: index });
+        }
+      });
+      
+      // 找到要上移的提示词在当前模式中的位置
+      const currentModeIndex = currentModePrompts.findIndex(item => item.prompt.id === id);
+      
+      // 检查是否可以上移（不是当前模式的第一个）
+      if (currentModeIndex > 0) {
+        const currentItem = currentModePrompts[currentModeIndex];
+        const previousItem = currentModePrompts[currentModeIndex - 1];
+        
+        // 在全局数组中交换这两个提示词的位置
+        const temp = prompts[currentItem.globalIndex];
+        prompts[currentItem.globalIndex] = prompts[previousItem.globalIndex];
+        prompts[previousItem.globalIndex] = temp;
         
         chrome.storage.local.set({ prompts: prompts }, function() {
           showToast('提示词已上移');
           loadPrompts();
         });
+      } else {
+        // 如果已经是当前模式的第一个，给出提示
+        showToast('已经是当前模式的第一个提示词');
       }
     });
   }

@@ -655,51 +655,34 @@ function handleInput(e) {
     return; // 允许问号正常输入
   }
   
-  // 检查是否是粘贴行为（通过InputEvent.inputType）
-  if (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop') {
+  // 检查是否是粘贴行为或其他批量输入
+  if (e.inputType === 'insertFromPaste' || 
+      e.inputType === 'insertFromDrop' || 
+      e.inputType === 'insertCompositionText' ||
+      e.inputType === 'insertFromYank') {
     isRecentPaste = true;
     lastInputTime = Date.now();
     hideMenu(); // 粘贴时隐藏菜单
     return;
   }
   
-  // 如果是最近粘贴后的操作，忽略
+  // 如果是最近粘贴后的操作，完全忽略
   if (isRecentPaste && Date.now() - lastInputTime < PASTE_COOLDOWN) {
     return;
   }
   
-  // 只有真正键入文本时才处理（不是粘贴、不是自动填充等）
-  if (e.inputType === 'insertText') {
-    // 检查当前网站是否是ChatGPT
-    const isChatGPT = window.location.href.includes('chatgpt.com');
+  // 只处理真正的单字符文本输入，且必须是斜杠
+  if (e.inputType === 'insertText' && e.data === '/' && !e.isComposing) {
+    activeInput = input;
+    showMenu(input);
     
-    // 检查光标位置是否有斜杠字符
-    if (input.value && typeof input.selectionStart === 'number') {
-      const cursorPosition = input.selectionStart;
-      // 确保是斜杠而不是问号(?)触发
-      // 获取前一个输入字符
-      const lastChar = input.value[cursorPosition - 1];
-      if (cursorPosition > 0 && lastChar === '/' && !(e.data === '?' || lastChar === '?')) {
-        activeInput = input;
-        showMenu(input);
-        
-        // 阻止浏览器的默认自动完成弹出
-        e.stopPropagation();
-      } else if (isMenuActive) {
-        // 检查是否还存在斜杠
-        let hasSlash = false;
-        for (let i = 0; i < input.value.length; i++) {
-          if (input.value[i] === '/') {
-            hasSlash = true;
-            break;
-          }
-        }
-        
-        // 如果没有斜杠了，隐藏菜单
-        if (!hasSlash) {
-          hideMenu();
-        }
-      }
+    // 阻止浏览器的默认自动完成弹出
+    e.stopPropagation();
+  } else if (isMenuActive) {
+    // 如果菜单已显示，检查文本中是否还有斜杠
+    const text = input.value || input.textContent || input.innerText || '';
+    if (!text.includes('/')) {
+      hideMenu();
     }
   }
 }
@@ -773,7 +756,7 @@ function monitorChatGPTInputs() {
         hideMenu(); // 粘贴时隐藏菜单
       });
       
-      // 1. 输入事件监听
+      // 1. 输入事件监听 - 只监听真正的斜杠字符输入
       input.addEventListener('input', (e) => {
         // 首先标记当前活动输入框
         activeInput = input;
@@ -786,160 +769,88 @@ function monitorChatGPTInputs() {
           return;
         }
         
-        // 检查是否是粘贴操作
-        if (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop') {
+        // 检查是否是粘贴操作或拖放操作
+        if (e.inputType === 'insertFromPaste' || 
+            e.inputType === 'insertFromDrop' || 
+            e.inputType === 'insertCompositionText' ||
+            e.inputType === 'insertFromYank') {
           isRecentPaste = true;
           lastInputTime = Date.now();
           hideMenu(); // 粘贴时隐藏菜单
           return;
         }
         
-        // 如果是最近粘贴后的操作，忽略
+        // 如果是最近粘贴后的操作，完全忽略
         if (isRecentPaste && Date.now() - lastInputTime < PASTE_COOLDOWN) {
           return;
         }
         
-        // 检查富文本编辑器
-        if (input.isContentEditable) {
-          const selection = window.getSelection();
-          if (selection && selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-            // 如果当前节点是文本节点
-            if (range.startContainer.nodeType === Node.TEXT_NODE) {
-              const text = range.startContainer.textContent;
-              const cursorPosition = range.startOffset;
-              
-              // 检查是否是直接输入的斜杠，而不是粘贴的或问号
-              if (cursorPosition > 0 && text[cursorPosition-1] === '/' && 
-                  e.inputType === 'insertText' && e.data !== '?') {
-                showMenu(input);
-              }
-            }
-          }
-        } 
-        // 检查常规输入框
-        else {
+        // 只处理单个字符的真实文本输入，且必须是斜杠字符
+        if (e.inputType === 'insertText' && e.data === '/' && !e.isComposing) {
+          // 验证这确实是用户手动输入的斜杠
+          showMenu(input);
+        } else if (isMenuActive) {
+          // 如果菜单已显示，检查文本中是否还有斜杠
           const text = input.value || input.textContent || input.innerText || '';
-          const cursorPos = input.selectionStart || 0;
-          
-          // 仅在插入文本且为斜杠时显示菜单，确保不是问号
-          if (cursorPos > 0 && text[cursorPos-1] === '/' && 
-              e.inputType === 'insertText' && e.data !== '?') {
-            showMenu(input);
+          if (!text.includes('/')) {
+            hideMenu();
           }
         }
       });
       
-      // 2. 键盘事件监听 - 直接捕获斜杠键
+      // 2. 键盘事件监听 - 只在按下斜杠键时记录，不直接触发菜单
       input.addEventListener('keydown', (e) => {
-        // 记录按键时间，用于区分真实按键和程序触发
-        const keyTime = Date.now();
-        
         // 精确匹配斜杠键，忽略问号(shift+/)
-        // 注意：e.keyCode === 191 可能是斜杠或问号，所以需检查shift键状态
         if ((e.key === '/' && !e.shiftKey) || 
             (e.key === 'Slash' && !e.shiftKey) || 
             (e.keyCode === 191 && !e.shiftKey)) {
           // 标记当前活动输入框
           activeInput = input;
           
-          // 确保这是真实的按键事件，而不是程序模拟
-          if (e.isTrusted) {
-            // 如果粘贴状态还在冷却期，忽略斜杠
-            if (isRecentPaste && Date.now() - lastInputTime < PASTE_COOLDOWN) {
-              return;
-            }
-            
-            // 延迟显示菜单
-            setTimeout(() => {
-              // 确保足够靠近按键时间（50ms内）
-              if (Date.now() - keyTime < 50) {
-                showMenu(input);
-              }
-            }, 10);
+          // 如果粘贴状态还在冷却期，忽略
+          if (isRecentPaste && Date.now() - lastInputTime < PASTE_COOLDOWN) {
+            return;
           }
+          
+          // 不在这里显示菜单，让input事件来处理
+          // 这样可以避免重复触发和粘贴冲突
         }
       });
       
-      // 特殊处理：Perplexity监控
+      // 特殊处理：Perplexity监控 - 简化逻辑，避免误触发
       if (isPerplexity) {
         input.addEventListener('focus', () => {
           // 记录当前活动输入框
           activeInput = input;
         });
         
-        // 文本粘贴监控
-        input.addEventListener('paste', () => {
-          setTimeout(() => {
-            activeInput = input;
-            showMenu(input);
-          }, 10);
-        });
-        
-        // 轮询检测 - 降低频率以减少性能开销
-        let lastContent = '';
-        const pollInterval = setInterval(() => {
-          const currentContent = input.textContent || input.innerText || input.value || '';
-          
-          // 检查是否存在斜杠但排除问号场景
-          if (currentContent.includes('/') && !currentContent.includes('?/') && currentContent !== lastContent) {
-            activeInput = input;
-            showMenu(input);
-          }
-          
-          lastContent = currentContent;
-        }, 350); // 350ms检查一次，降低性能消耗
-        
-        input.slashPromptInterval = pollInterval;
+        // 移除粘贴后自动显示菜单的逻辑，避免误触发
+        // 只依赖正常的输入检测机制
       }
       
-      // 3. 使用MutationObserver监控内容变化
+      // 3. 使用MutationObserver监控内容变化 - 仅作为备用检测
       try {
         const observer = new MutationObserver((mutations) => {
-          // 如果是最近粘贴后的操作，忽略
+          // 如果是最近粘贴后的操作，完全忽略
           if (isRecentPaste && Date.now() - lastInputTime < PASTE_COOLDOWN) {
             return;
           }
           
-          // 检查变化是否很小（可能是单字符输入）
-          let hasSmallChange = false;
+          // 只监控单字符变化，避免大量文本变化时误触发
           for (const mutation of mutations) {
-            if (mutation.type === 'characterData') {
-              const oldLength = mutation.oldValue ? mutation.oldValue.length : 0;
+            if (mutation.type === 'characterData' && mutation.oldValue) {
+              const oldLength = mutation.oldValue.length;
               const newLength = mutation.target.textContent ? mutation.target.textContent.length : 0;
               const lengthDiff = Math.abs(newLength - oldLength);
               
-              // 仅当变化很小（如单个字符）时才考虑
-              if (lengthDiff <= 2) {
-                hasSmallChange = true;
-                break;
-              }
-            }
-          }
-          
-          // 仅当有小变化且不是刚粘贴时，才检查斜杠
-          if (hasSmallChange) {
-            for (const mutation of mutations) {
-              if (mutation.type === 'characterData' || mutation.type === 'childList') {
-                // 检查是否有斜杠，排除问号
-                const text = input.textContent || input.innerText || input.value || '';
-                // 确保不会在问号后面的斜杠触发菜单
-                if (text.includes('/') && !text.includes('?/')) {
-                  // 进一步检查，确保最近的斜杠不是问号后面的
-                  let hasTriggerSlash = false;
-                  for (let i = 0; i < text.length; i++) {
-                    if (text[i] === '/' && (i === 0 || text[i-1] !== '?')) {
-                      hasTriggerSlash = true;
-                      break;
-                    }
-                  }
-                  
-                  if (hasTriggerSlash) {
-                    // 标记当前活动输入框，并尝试显示菜单
-                    activeInput = input;
-                    showMenu(input);
-                    break;
-                  }
+              // 只处理单字符变化（长度差为1）
+              if (lengthDiff === 1 && newLength > oldLength) {
+                const text = mutation.target.textContent || '';
+                // 检查最后一个字符是否是斜杠
+                if (text.endsWith('/')) {
+                  activeInput = input;
+                  showMenu(input);
+                  return;
                 }
               }
             }
@@ -947,10 +858,9 @@ function monitorChatGPTInputs() {
         });
         
         observer.observe(input, { 
-          childList: true, 
           characterData: true,
           subtree: true,
-          characterDataOldValue: true // 记录旧值以便比较变化大小
+          characterDataOldValue: true
         });
         
         // 存储observer以便稍后清理
@@ -961,29 +871,29 @@ function monitorChatGPTInputs() {
     }
   });
   
-  // 如果在Perplexity上，添加全局按键监听
+  // 如果在Perplexity上，添加全局按键监听 - 简化逻辑
   if (isPerplexity && !window.perplexityKeyListenerAdded) {
     window.perplexityKeyListenerAdded = true;
     
     document.addEventListener('keypress', (e) => {
-      if (e.key === '/' && !e.shiftKey) {
-        setTimeout(() => {
-          // 找到当前焦点元素或任何可能的输入框
-          const focusedElement = document.activeElement;
-          const potentialInputs = [
-            focusedElement,
-            ...document.querySelectorAll('[contenteditable="true"]'),
-            ...document.querySelectorAll('.ql-editor')
-          ];
-          
-          for (const input of potentialInputs) {
-            if (input && (input.textContent || input.innerText || input.value || '').endsWith('/')) {
-              activeInput = input;
-              showMenu(input);
-              break;
+      if (e.key === '/' && !e.shiftKey && e.isTrusted) {
+        // 如果是粘贴冷却期内，忽略
+        if (isRecentPaste && Date.now() - lastInputTime < PASTE_COOLDOWN) {
+          return;
+        }
+        
+        // 找到当前焦点元素
+        const focusedElement = document.activeElement;
+        if (focusedElement && focusedElement.isContentEditable) {
+          activeInput = focusedElement;
+          // 延迟检查，确保斜杠已经被输入
+          setTimeout(() => {
+            const text = focusedElement.textContent || focusedElement.innerText || '';
+            if (text.endsWith('/')) {
+              showMenu(focusedElement);
             }
-          }
-        }, 10);
+          }, 10);
+        }
       }
     }, true);
   }
