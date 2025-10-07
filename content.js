@@ -9,6 +9,10 @@ let isMenuActive = false; // 跟踪菜单是否激活
 let isRecentPaste = false; // 跟踪是否刚刚粘贴了内容
 let lastInputTime = 0; // 上次输入的时间
 const PASTE_COOLDOWN = 1000; // 粘贴后的冷却时间（毫秒）
+let isMenuOpening = false; // 菜单是否正在显示过程中（用于处理Enter竞态）
+let lastSelectionRange = null; // 记录富文本编辑器内最近的光标选区
+let pendingEnterConfirm = false; // 在菜单加载期间按下回车时的延迟确认
+let lastShowMenuAt = 0; // 最近一次 showMenu 的时间，用于抖动去重
 
 // 加载提示词数据和当前模式
 function loadPrompts() {
@@ -235,6 +239,11 @@ function showMenu(input) {
   if (!menu) {
     menu = createMenu();
   }
+  // 抖动去重：短时间内避免重复打开同一个菜单
+  const now = Date.now();
+  if (isMenuActive && (now - lastShowMenuAt) < 120) {
+    return;
+  }
   
   // 检查当前网站
   const isPerplexity = window.location.href.includes('perplexity.ai');
@@ -242,12 +251,31 @@ function showMenu(input) {
   
   // 重新加载当前模式的提示词
   loadPrompts();
-  
+
+  // 进入菜单打开阶段，提前标记，降低回车竞态导致的丢失
+  isMenuOpening = true;
+  // 提前设置默认选中，允许用户快速按Enter
+  if (selectedIndex < 0) selectedIndex = 0;
+  isMenuActive = true;
+  lastShowMenuAt = now;
+
+  // 记录当前富文本编辑器的选区，便于点击菜单后恢复
+  try {
+    const editorRoot = resolveEditorRoot(input);
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const r = sel.getRangeAt(0);
+      if (editorRoot && editorRoot.contains(r.startContainer)) {
+        lastSelectionRange = r.cloneRange();
+      }
+    }
+  } catch (_) {}
+
   // 等待加载完成后再显示
   setTimeout(() => {
-    // 重置选中索引
-    selectedIndex = 0;
-    
+    // 确保有默认选项
+    if (selectedIndex < 0) selectedIndex = 0;
+
     // 更新菜单显示
     updateMenuDisplay();
     
@@ -268,6 +296,8 @@ function showMenu(input) {
       // 尝试多次显示以确保不被其他元素覆盖
       let showAttempts = 0;
       const ensureVisible = () => {
+        // 如果菜单在这段时间被关闭，不再强制显示
+        if (!isMenuActive || menu.style.display === 'none') return;
         if (showAttempts < 5) {
           menu.style.display = 'block';
           // 确保菜单处于最顶层
@@ -283,6 +313,17 @@ function showMenu(input) {
     }
     
     isMenuActive = true;
+    isMenuOpening = false;
+
+    // 如果期间有回车确认请求，优先执行一次
+    if (pendingEnterConfirm) {
+      pendingEnterConfirm = false;
+      if (promptsData.length > 0 && (selectedIndex < 0 || selectedIndex >= promptsData.length)) {
+        selectedIndex = 0;
+      }
+      // 直接尝试确认选择
+      confirmSelection();
+    }
     
     // 阻止输入字段的默认自动完成
     if (input.autocomplete) {
@@ -346,8 +387,8 @@ function selectNext() {
 
 // 确认选择
 function confirmSelection() {
-  // 确保菜单是显示的，并且有选中的项目
-  if (!menu || menu.style.display === 'none' || selectedIndex < 0) {
+  // 确保菜单处于激活或即将显示状态，并且有选中的项目
+  if (((!menu || menu.style.display === 'none') && !isMenuActive && !isMenuOpening) || selectedIndex < 0) {
     return false;
   }
   
@@ -357,13 +398,103 @@ function confirmSelection() {
   }
   
   // 确保有活动的输入框
-  if (!activeInput) {
-    return false;
+  if (!activeInput || !document.contains(activeInput)) {
+    // 尝试回退查找当前编辑器
+    activeInput = getActiveEditableFallback();
+    if (!activeInput) {
+      return false;
+    }
   }
   
   // 插入选中的提示词
   insertPrompt(activeInput, promptsData[selectedIndex].content);
   return true;
+}
+
+// 判断元素是否为可编辑输入/编辑器
+function isEditableElement(el) {
+  if (!el || !(el instanceof Element)) return false;
+  if (el.tagName === 'TEXTAREA') return true;
+  if (el.tagName === 'INPUT' && (el.type === 'text' || el.type === 'search' || el.type === 'email' || el.type === 'url')) return true;
+  if (el.isContentEditable) return true;
+  if (el.getAttribute && (el.getAttribute('role') === 'textbox')) return true;
+  if (el.classList && (el.classList.contains('ProseMirror') || el.classList.contains('ql-editor'))) return true;
+  if (typeof el.matches === 'function' && el.matches('[data-slate-editor], [data-slate-editor="true"]')) return true;
+  return false;
+}
+
+// 解析并返回富文本编辑器的根节点（如Slate/ProseMirror）
+function resolveEditorRoot(el) {
+  if (!el || !(el instanceof Element)) return el;
+  const slateRoot = el.closest && (el.closest('[data-slate-editor]') || el.closest('[data-slate-editor="true"]'));
+  if (slateRoot) return slateRoot;
+  return el;
+}
+
+// 返回实际可编辑的叶节点（contenteditable=true 的元素）
+function getEditableLeaf(el) {
+  if (!el || !(el instanceof Element)) return el;
+  if (el.isContentEditable) return el;
+  try {
+    const leaf = el.querySelector('[contenteditable="true"]');
+    return leaf || el;
+  } catch (_) {
+    return el;
+  }
+}
+
+// 将光标放置于元素文本末尾
+function placeCursorAtEnd(el) {
+  try {
+    const sel = window.getSelection();
+    if (!sel) return;
+    const range = document.createRange();
+    let node = el;
+    // 找到最后一个文本节点
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
+    let last = null, n;
+    while ((n = walker.nextNode())) last = n;
+    if (last) {
+      range.setStart(last, last.textContent ? last.textContent.length : 0);
+    } else {
+      range.setStart(el, el.childNodes ? el.childNodes.length : 0);
+    }
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } catch (_) {}
+}
+
+// 触发 beforeinput:insertText（供 Slate/Perplexity 使用）
+function dispatchBeforeInputInsert(el, text) {
+  try {
+    const evt = new InputEvent('beforeinput', {
+      inputType: 'insertText',
+      data: text,
+      bubbles: true,
+      cancelable: true,
+      composed: true
+    });
+    el.dispatchEvent(evt);
+  } catch (_) {}
+}
+
+// 回退查找当前活动编辑器（用于Perplexity等场景）
+function getActiveEditableFallback() {
+  let el = document.activeElement;
+  if (isEditableElement(el)) return resolveEditorRoot(el);
+  // 尝试查找页面中最有可能的编辑器
+  const candidates = [
+    '[data-slate-editor]','[data-slate-editor="true"]','[contenteditable="true"]','[role="textbox"]',
+    '.ProseMirror','.ql-editor','textarea','input[type="text"]','input[type="search"]'
+  ];
+  for (const sel of candidates) {
+    try {
+      const found = document.querySelector(sel);
+      if (found) return resolveEditorRoot(found);
+    } catch (_) {}
+  }
+  return null;
 }
 
 // 定位菜单
@@ -529,6 +660,8 @@ function hideMenu() {
   if (menu) {
     menu.style.display = 'none';
     isMenuActive = false;
+    isMenuOpening = false;
+    pendingEnterConfirm = false;
     selectedIndex = -1;
     
     // 隐藏背景(如果有)
@@ -554,61 +687,155 @@ function insertPrompt(input, content) {
   // 添加空格的提示词内容
   const contentWithSpace = content + ' ';
   
-  // 判断是否 ChatGPT 富文本框
-  const isChatGPTInput =
-    input.getAttribute('role') === 'textbox' ||
-    input.classList.contains('ProseMirror');
+  // 将“富文本”统一识别：ChatGPT/Perplexity/通用 contenteditable/富文本编辑器
+  const editorRoot = resolveEditorRoot(input);
+  const isRichTextInput = (
+    editorRoot.isContentEditable === true ||
+    editorRoot.getAttribute('contenteditable') === 'true' ||
+    editorRoot.getAttribute('role') === 'textbox' ||
+    editorRoot.classList.contains('ProseMirror') ||
+    editorRoot.classList.contains('ql-editor') ||
+    // Slate (Perplexity) 容器
+    !!(typeof editorRoot.closest === 'function' && editorRoot.closest('[data-slate-editor]'))
+  );
 
-  if (isChatGPTInput) {
-    // —— ChatGPT 富文本分支 ——
-    input.focus();
+  if (isRichTextInput) {
+    // —— 富文本分支（包含Perplexity与ChatGPT）——
+    const editable = getEditableLeaf(editorRoot);
+    editable.focus();
 
     const sel = window.getSelection();
-    if (!sel.rangeCount) return;
-    let range = sel.getRangeAt(0);
-    let container = range.startContainer;
-    let offset = range.startOffset;
+    // 优先恢复之前的选区（点击菜单后焦点丢失的情况）
+    try {
+      if (lastSelectionRange && editable.contains(lastSelectionRange.startContainer)) {
+        sel.removeAllRanges();
+        sel.addRange(lastSelectionRange);
+      } else {
+        // 如果没有记录，退化为把光标移到末尾
+        placeCursorAtEnd(editable);
+      }
+    } catch (_) {}
 
-    // 如果当前容器不是文本节点，尝试找最近的文本节点
-    if (container.nodeType !== Node.TEXT_NODE) {
-      const walker = document.createTreeWalker(
-        input,
-        NodeFilter.SHOW_TEXT,
-        null,
-        false
-      );
-      let node, last = null;
-      while ((node = walker.nextNode())) {
-        last = node;
-        // 找到包含光标的节点时停止
-        if (node === range.startContainer) break;
-      }
-      if (last) {
-        container = last;
-        offset = container.textContent.length;
-      }
+    if (!sel || !sel.rangeCount) {
+      // 无法获取选区则直接插入到末尾
+      try {
+        // 优先触发 beforeinput，让编辑器自行接管
+        dispatchBeforeInputInsert(editable, contentWithSpace);
+        document.execCommand('insertText', false, contentWithSpace);
+      } catch (_) {}
+      // 触发输入事件
+      editable.dispatchEvent(new Event('input', { bubbles: true }));
+      setTimeout(hideMenu, 10);
+      return;
     }
 
-    // 在文本节点里找最后一个斜杠
-    const text = container.textContent || '';
-    const slashIndex = text.lastIndexOf('/', offset);
-    if (slashIndex < 0) return;
+    let range = sel.getRangeAt(0);
 
-    // 选中那个斜杠
-    const slashRange = document.createRange();
-    slashRange.setStart(container, slashIndex);
-    slashRange.setEnd(container, slashIndex + 1);
-    sel.removeAllRanges();
-    sel.addRange(slashRange);
+    // 尝试将选区扩展到光标前一个字符（如果是'/'则替换它）
+    const expandSelectionToSlash = () => {
+      let container = range.startContainer;
+      let offset = range.startOffset;
 
-    // 用 execCommand 插入提示词（会替换选区）- 包含空格
-    document.execCommand('insertText', false, contentWithSpace);
+      // 如果当前容器不是文本节点，尝试找到离光标最近的文本节点
+      if (container.nodeType !== Node.TEXT_NODE) {
+        const walker = document.createTreeWalker(
+          editable,
+          NodeFilter.SHOW_TEXT,
+          null,
+          false
+        );
+        let node, prev = null;
+        while ((node = walker.nextNode())) {
+          if (node === range.startContainer) break;
+          prev = node;
+        }
+        if (prev) {
+          container = prev;
+          offset = container.textContent ? container.textContent.length : 0;
+        }
+      }
 
-    // 确保输入框保持焦点
+      if (container.nodeType === Node.TEXT_NODE) {
+        const text = container.textContent || '';
+        const prevIndex = Math.max(0, Math.min(offset - 1, text.length - 1));
+        if (text[prevIndex] === '/') {
+          const slashRange = document.createRange();
+          slashRange.setStart(container, prevIndex);
+          slashRange.setEnd(container, prevIndex + 1);
+          sel.removeAllRanges();
+          sel.addRange(slashRange);
+          return true;
+        }
+      }
+
+      // 跨节点情况：在整个输入区域内查找离光标最近的斜杠
+      try {
+        const walker = document.createTreeWalker(
+      editable,
+          NodeFilter.SHOW_TEXT,
+          null,
+          false
+        );
+        let node, lastTextBeforeCaret = null, passedCaret = false;
+        while ((node = walker.nextNode())) {
+          if (node === range.startContainer) {
+            passedCaret = true;
+            // 在当前文本节点内，检查光标前字符
+            const t = node.textContent || '';
+            const idx = Math.max(0, Math.min(range.startOffset - 1, t.length - 1));
+            if (t[idx] === '/') {
+              const slashRange = document.createRange();
+              slashRange.setStart(node, idx);
+              slashRange.setEnd(node, idx + 1);
+              sel.removeAllRanges();
+              sel.addRange(slashRange);
+              return true;
+            }
+          } else if (!passedCaret) {
+            lastTextBeforeCaret = node;
+          } else {
+            break;
+          }
+        }
+        if (lastTextBeforeCaret) {
+          const t = lastTextBeforeCaret.textContent || '';
+          if (t.endsWith('/')) {
+            const slashRange = document.createRange();
+            slashRange.setStart(lastTextBeforeCaret, t.length - 1);
+            slashRange.setEnd(lastTextBeforeCaret, t.length);
+            sel.removeAllRanges();
+            sel.addRange(slashRange);
+            return true;
+          }
+        }
+      } catch (_) {}
+      return false;
+    };
+
+    // 若能选中斜杠则替换，否则直接插入
+    expandSelectionToSlash();
+    try {
+      // 先试着让编辑器通过 beforeinput 接收
+      dispatchBeforeInputInsert(editable, contentWithSpace);
+      document.execCommand('insertText', false, contentWithSpace);
+    } catch (_) {
+      // Fallback: 直接把文本节点插入到当前选区
+      const textNode = document.createTextNode(contentWithSpace);
+      range.deleteContents();
+      range.insertNode(textNode);
+      // 移动光标到插入内容之后
+      range.setStartAfter(textNode);
+      range.setEndAfter(textNode);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+
+    // 保持焦点并触发输入事件（Slate/Perplexity 依赖这一步）
     setTimeout(() => {
-      input.focus();
-      // 通知页面内容已更新
-      input.dispatchEvent(new Event('input', { bubbles: true }));
+      editable.focus();
+      editable.dispatchEvent(new Event('input', { bubbles: true }));
+      // 清理一次已使用的记录选区
+      lastSelectionRange = null;
     }, 0);
 
   } else {
@@ -919,8 +1146,8 @@ function handleKeyDown(e) {
     return; // 允许问号正常输入
   }
 
-  // 如果菜单没有显示，不处理按键
-  if (!menu || menu.style.display === 'none') {
+  // 如果菜单没有显示，也不是正在显示过程，则不处理按键
+  if ((!menu || menu.style.display === 'none') && !isMenuActive && !isMenuOpening) {
     return;
   }
   
@@ -941,14 +1168,22 @@ function handleKeyDown(e) {
       e.stopPropagation();
       break;
     case 'Enter':
-      // 只有在有选中项目时才阻止默认行为
-      if (selectedIndex >= 0 && selectedIndex < promptsData.length) {
-        if (confirmSelection()) {
-          e.preventDefault();
-          e.stopPropagation(); // 阻止事件冒泡
-        }
+      // 菜单仍在打开阶段或数据未加载完，延迟一次确认
+      if (isMenuOpening || promptsData.length === 0) {
+        pendingEnterConfirm = true;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      // 如果还未选中任何项，则默认选中第一项
+      if ((selectedIndex < 0 || selectedIndex >= promptsData.length) && promptsData.length > 0) {
+        selectedIndex = 0;
+      }
+      if (promptsData.length > 0 && confirmSelection()) {
+        e.preventDefault();
+        e.stopPropagation(); // 阻止事件冒泡
       } else {
-        // 如果没有选中项目，隐藏菜单但不阻止默认行为
+        // 如果没有可选项目，隐藏菜单但不阻止默认行为
         hideMenu();
       }
       break;
@@ -1023,17 +1258,20 @@ function init() {
     
     // 特别处理Perplexity和Edge
     if (isPerplexity || isEdge) {
-      // 添加文档级键盘事件监听
-      document.addEventListener('keypress', (e) => {
-        if (e.key === '/' && document.activeElement) {
-          setTimeout(() => {
-            if (document.activeElement) {
-              activeInput = document.activeElement;
-              showMenu(activeInput);
-            }
-          }, 10);
-        }
-      }, true);
+      // 添加文档级键盘事件监听（避免重复注册）
+      if (!window.slashKeypressAdded) {
+        window.slashKeypressAdded = true;
+        document.addEventListener('keypress', (e) => {
+          if (e.key === '/' && document.activeElement) {
+            setTimeout(() => {
+              if (document.activeElement) {
+                activeInput = document.activeElement;
+                showMenu(activeInput);
+              }
+            }, 10);
+          }
+        }, true);
+      }
       
       // Perplexity网站特殊处理
       if (isPerplexity) {
@@ -1102,44 +1340,55 @@ function init() {
   
   // 监听点击事件
   document.addEventListener('mousedown', handleDocumentClick);
+
+  // 捕获焦点变更，稳定记录当前活动编辑器（修复Perplexity丢失activeInput）
+  document.addEventListener('focusin', (e) => {
+    const t = e.target;
+    if (isEditableElement(t)) {
+      activeInput = resolveEditorRoot(t);
+    }
+  }, true);
   
   // 监听按键事件 - 使用捕获阶段以确保我们的处理优先于其他处理程序
   document.addEventListener('keydown', handleKeyDown, true);
   
-  // 监听全局的斜杠按键 - 作为备用触发方式
-  document.addEventListener('keydown', (e) => {
-    // 过滤掉问号键（Shift+/）
-    if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
-      return; // 不处理问号输入
-    }
-    
-    if ((e.key === '/' || e.key === 'Slash' || (e.keyCode === 191 && !e.shiftKey)) && document.activeElement) {
-      const activeElement = document.activeElement;
-      
-      if (activeElement.tagName === 'TEXTAREA' || 
-          activeElement.tagName === 'INPUT' ||
-          activeElement.getAttribute('role') === 'textbox' ||
-          activeElement.getAttribute('contenteditable') === 'true' ||
-          activeElement.classList.contains('ProseMirror') ||
-          activeElement.classList.contains('ql-editor') ||
-          // 添加新版ChatGPT输入框识别
-          activeElement.classList.contains('text-input') ||
-          activeElement.hasAttribute('data-id') ||
-          activeElement.hasAttribute('placeholder') ||
-          activeElement.id === 'prompt-textarea' ||
-          (activeElement.parentElement && activeElement.parentElement.classList.contains('text-input-container')) ||
-          (activeElement.parentElement && activeElement.parentElement.classList.contains('relative'))) {
-        
-        // 立即标记当前活动元素
-        activeInput = activeElement;
-        
-        // 等待字符输入后显示菜单
-        setTimeout(() => {
-          showMenu(activeElement);
-        }, 10);
+  // 监听全局的斜杠按键 - 作为备用触发方式（避免重复注册）
+  if (!window.slashKeydownAdded) {
+    window.slashKeydownAdded = true;
+    document.addEventListener('keydown', (e) => {
+      // 过滤掉问号键（Shift+/）
+      if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+        return; // 不处理问号输入
       }
-    }
-  }, true);
+      
+      if ((e.key === '/' || e.key === 'Slash' || (e.keyCode === 191 && !e.shiftKey)) && document.activeElement) {
+        const activeElement = document.activeElement;
+        
+        if (activeElement.tagName === 'TEXTAREA' || 
+            activeElement.tagName === 'INPUT' ||
+            activeElement.getAttribute('role') === 'textbox' ||
+            activeElement.getAttribute('contenteditable') === 'true' ||
+            activeElement.classList.contains('ProseMirror') ||
+            activeElement.classList.contains('ql-editor') ||
+            // 添加新版ChatGPT输入框识别
+            activeElement.classList.contains('text-input') ||
+            activeElement.hasAttribute('data-id') ||
+            activeElement.hasAttribute('placeholder') ||
+            activeElement.id === 'prompt-textarea' ||
+            (activeElement.parentElement && activeElement.parentElement.classList.contains('text-input-container')) ||
+            (activeElement.parentElement && activeElement.parentElement.classList.contains('relative'))) {
+          
+          // 立即标记当前活动元素
+          activeInput = activeElement;
+          
+          // 等待字符输入后显示菜单
+          setTimeout(() => {
+            showMenu(activeElement);
+          }, 10);
+        }
+      }
+    }, true);
+  }
   
   // 阻止可能干扰的事件
   document.addEventListener('search', handleAutocompleteEvents, true);
@@ -1193,8 +1442,8 @@ function init() {
   
   // 添加调试工具
   window.slashPromptDebug = {
-    // 启用日志记录 - 默认关闭以减少控制台输出
-    enableLogging: false,
+    // 启用日志记录 - 在 Perplexity 默认开启，方便排查
+    enableLogging: isPerplexity ? true : false,
     
     // 检查输入框
     checkInputs: monitorChatGPTInputs,
