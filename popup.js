@@ -21,6 +21,42 @@ document.addEventListener('DOMContentLoaded', function() {
   let currentMode = { id: 'default', name: 'Mode' };
   let modes = [{ id: 'default', name: 'Mode' }];
   let isAddingMode = false;
+
+  // Popup 键盘导航状态
+  let listItems = [];
+  let selectedIndex = -1;
+
+  function updateSelection(nextIndex) {
+    if (!listItems.length) {
+      selectedIndex = -1;
+      return;
+    }
+    // 环绕
+    const max = listItems.length - 1;
+    if (nextIndex < 0) nextIndex = max;
+    if (nextIndex > max) nextIndex = 0;
+    selectedIndex = nextIndex;
+    listItems.forEach((el, i) => {
+      if (i === selectedIndex) {
+        el.classList.add('selected');
+        // 确保可见
+        el.scrollIntoView({ block: 'nearest' });
+      } else {
+        el.classList.remove('selected');
+      }
+    });
+  }
+
+  function collectListItems() {
+    listItems = Array.from(promptsList.querySelectorAll('.prompt-item'));
+    // 默认选中第一项
+    selectedIndex = listItems.length ? 0 : -1;
+    updateSelection(selectedIndex);
+    // 鼠标悬停联动
+    listItems.forEach((el, i) => {
+      el.addEventListener('mouseenter', () => updateSelection(i));
+    });
+  }
   
   // 处理捐赠链接点击
   const donateLink = document.querySelector('.donate-container a');
@@ -42,6 +78,10 @@ document.addEventListener('DOMContentLoaded', function() {
   function init() {
     loadModes();
     loadPrompts();
+    // 进入时聚焦搜索框，便于直接输入
+    if (searchInput) {
+      try { searchInput.focus(); } catch (_) {}
+    }
   }
 
   // 加载模式
@@ -228,6 +268,8 @@ document.addEventListener('DOMContentLoaded', function() {
     filteredPrompts.forEach(function(prompt, index) {
       const promptItem = document.createElement('div');
       promptItem.className = 'prompt-item';
+      promptItem.dataset.index = String(index);
+      promptItem.dataset.content = prompt.content;
       
       // 添加上移按钮
       const pinButton = document.createElement('div');
@@ -316,6 +358,9 @@ document.addEventListener('DOMContentLoaded', function() {
       
       promptsList.appendChild(promptItem);
     });
+
+    // 渲染完收集可选项
+    collectListItems();
   }
 
   // Mode下拉菜单事件
@@ -1021,6 +1066,8 @@ document.addEventListener('DOMContentLoaded', function() {
     searchResults.forEach(function(prompt, index) {
       const promptItem = document.createElement('div');
       promptItem.className = 'prompt-item';
+    promptItem.dataset.index = String(index);
+    promptItem.dataset.content = prompt.content;
       
       const promptInfo = document.createElement('div');
       promptInfo.className = 'prompt-info';
@@ -1110,6 +1157,9 @@ document.addEventListener('DOMContentLoaded', function() {
       
       promptsList.appendChild(promptItem);
     });
+
+    // 渲染完收集可选项
+    collectListItems();
   }
 
   // 搜索功能 - 全局搜索
@@ -1126,6 +1176,50 @@ document.addEventListener('DOMContentLoaded', function() {
       loadPrompts();
     }
   });
+
+  // 键盘导航：在输入框聚焦时也能上下左右选择，Enter 确认插入
+  document.addEventListener('keydown', function(e) {
+    // 只有列表视图活动时才处理
+    if (!listView.classList.contains('active')) return;
+
+    const isArrow = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key);
+    if (isArrow && document.activeElement === searchInput) {
+      e.preventDefault();
+    }
+
+    if (!listItems.length) return;
+
+    switch (e.key) {
+      case 'ArrowUp':
+      case 'ArrowLeft':
+        updateSelection(selectedIndex - 1);
+        break;
+      case 'ArrowDown':
+      case 'ArrowRight':
+        updateSelection(selectedIndex + 1);
+        break;
+      case 'Enter':
+        // 当焦点在输入框或列表上，按 Enter 插入选中提示词
+        if (selectedIndex >= 0 && selectedIndex < listItems.length) {
+          const el = listItems[selectedIndex];
+          const content = el.dataset.content || '';
+          if (content) {
+            // 先复制到剪贴板，再发送插入消息
+            try { navigator.clipboard.writeText(content); } catch (_) {}
+            chrome.runtime.sendMessage({
+              action: 'insertPrompt',
+              content
+            }, function() { window.close(); });
+            e.preventDefault();
+          }
+        }
+        break;
+      default:
+        return;
+    }
+  });
+
+  // （撤回）不在弹窗里处理键盘导航/Enter，保持原行为
 
   // 初始化
   styleImportButton();
