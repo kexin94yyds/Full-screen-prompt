@@ -297,6 +297,8 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // 添加点击事件，模拟斜杠命令菜单的Enter键功能
       promptInfo.addEventListener('click', function() {
+        // 复制到剪贴板
+        copyToClipboard(prompt.content);
         // 向background发送消息，请求插入提示词
         chrome.runtime.sendMessage({
           action: 'insertPrompt',
@@ -855,7 +857,16 @@ document.addEventListener('DOMContentLoaded', function() {
     createImportDialog();
     importDialog.style.display = 'flex';
     importTextarea.value = '';
-    
+    // 防止在导入对话框内的键盘事件冒泡到全局（例如全局的 Enter 监听导致弹窗关闭）
+    // 不阻止默认行为，这样 Enter/Shift+Enter 在 textarea 里仍然是正常换行
+    if (importTextarea && !importTextarea.__bubbleStopped) {
+      importTextarea.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+      });
+      // 标记避免重复绑定
+      importTextarea.__bubbleStopped = true;
+    }
+
     // 添加示例文本作为placeholder
     importTextarea.placeholder = '示例：\nTitle(1)\nPrompts(1)\n\nTitle(2)\nPrompts(2)\n\n注意：\n请输入文本内容，每个提示词之间用空行分隔';
   }
@@ -1181,6 +1192,11 @@ document.addEventListener('DOMContentLoaded', function() {
   document.addEventListener('keydown', function(e) {
     // 只有列表视图活动时才处理
     if (!listView.classList.contains('active')) return;
+
+    // 如果导入对话框处于显示状态，则不处理全局键盘导航/回车
+    if (importDialog && importDialog.style && importDialog.style.display === 'flex') {
+      return;
+    }
 
     const isArrow = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key);
     if (isArrow && document.activeElement === searchInput) {
