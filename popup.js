@@ -1121,10 +1121,14 @@ document.addEventListener('DOMContentLoaded', function() {
       
       // 添加点击事件
       promptInfo.addEventListener('click', function() {
+        // 复制到剪贴板
+        copyToClipboard(prompt.content);
+        // 向background发送消息，请求插入提示词
         chrome.runtime.sendMessage({
           action: 'insertPrompt',
           content: prompt.content
         }, function(response) {
+          // 关闭popup
           window.close();
         });
       });
