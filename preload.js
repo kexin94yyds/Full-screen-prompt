@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 粘贴文本到光标位置
   pasteText: () => ipcRenderer.invoke('paste-text'),
+  // 复制+隐藏+粘贴（一步到位，更快更稳）
+  insertAndPaste: (text) => ipcRenderer.invoke('insert-and-paste', text),
   
   // 窗口操作
   window: {
@@ -47,4 +49,3 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 标识这是 Electron 环境
   isElectron: true
 });
-

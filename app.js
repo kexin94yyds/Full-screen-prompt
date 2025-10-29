@@ -960,24 +960,16 @@ document.addEventListener('DOMContentLoaded', function() {
   // 将提示词插入到光标位置
   async function insertPromptAtCursor(text) {
     try {
-      // 1. 先复制到剪贴板
+      // 优先使用主进程一体化的插入接口：复制→隐藏→粘贴（更快更准）
+      if (window.electronAPI && typeof window.electronAPI.insertAndPaste === 'function') {
+        await window.electronAPI.insertAndPaste(text);
+        return;
+      }
+
+      // 回退方案：分步进行（兼容旧版本）
       await clipboard.writeText(text);
-      
-      // 2. 隐藏窗口
-      try {
-        await window.electronAPI.window.hide();
-      } catch (_) {}
-      
-      // 3. 等待窗口隐藏完成，然后模拟粘贴操作
-      setTimeout(async () => {
-        try {
-          await window.electronAPI.pasteText();
-          showToast('提示词已插入');
-        } catch (err) {
-          console.error('插入失败:', err);
-          showToast('插入失败，内容已复制到剪贴板');
-        }
-      }, 100);
+      try { await window.electronAPI.window.hide(); } catch (_) {}
+      try { await window.electronAPI.pasteText(); } catch (_) {}
       
     } catch (err) {
       console.error('插入失败:', err);
@@ -1171,7 +1163,9 @@ document.addEventListener('DOMContentLoaded', function() {
           const el = listItems[selectedIndex];
           const content = el.dataset.content || '';
           if (content) {
-            copyToClipboard(content);
+            // 像 ClipBook 一样：将所选提示词插入到上一个活动应用的光标处
+            // 实现步骤：复制 → 隐藏窗口 → 模拟 Cmd+V 粘贴
+            insertPromptAtCursor(content);
             e.preventDefault();
           }
         }
