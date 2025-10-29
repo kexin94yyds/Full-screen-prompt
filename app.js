@@ -628,6 +628,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     listView.classList.remove('active');
     editorView.classList.add('active');
+    // 关闭 Mode 下拉并聚焦标题
+    modeDropdown.classList.remove('active');
+    setTimeout(() => { try { document.getElementById('prompt-name').focus(); } catch (_) {} }, 30);
   }
 
   promptEditor.addEventListener('submit', function(e) {
@@ -692,6 +695,15 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('prompt-id').value = '';
     document.getElementById('prompt-name').value = '';
     document.getElementById('prompt-content').value = '';
+  });
+
+  // Esc 关闭编辑视图（非模态）
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && editorView.classList.contains('active')) {
+      e.stopPropagation();
+      listView.classList.add('active');
+      editorView.classList.remove('active');
+    }
   });
 
   searchInput.addEventListener('input', function() {
