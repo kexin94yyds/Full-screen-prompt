@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>提示词库 - Mac 原生应用</title>
+  <style>
+    :root {
+      --primary: #4a6cf7;
+      --primary-hover: #3e5eea;
+      --bg: #f6f8ff;
+      --card-bg: #ffffff;
+      --border: #e6eafe;
+      --text: #1f2937;
+      --muted: #667085;
+      --shadow: 0 12px 28px rgba(24, 57, 245, 0.12);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 100%;
+      height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      padding: 16px;
+      background: var(--bg);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      color: var(--text);
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .title {
+      font-size: 20px;
+      font-weight: bold;
+      color: #333;
+    }
+    
+    .window-controls {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .window-btn {
+      width: 30px;
+      height: 30px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      background-color: #e0e0e0;
+      transition: background-color 0.2s;
+    }
+    
+    .window-btn:hover {
+      background-color: #d0d0d0;
+    }
+    
+    .content-wrapper {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+    
+    .search-container { margin-bottom: 16px; }
+    
+    .search-input {
+      width: 100%;
+      height: 52px;
+      padding: 0 18px;
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      font-size: 16px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      box-shadow: 0 3px 8px rgba(74,108,247,0.06) inset;
+      background: #fff;
+    }
+    
+    .search-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(74,108,247,0.2);
+    }
+    
+    .action-buttons {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      width: 100%;
+    }
+    
+    .add-button, .export-button, .import-button {
+      height: 52px;
+      padding: 0 16px;
+      background-color: var(--primary);
+      color: white;
+      text-align: center;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 700;
+      flex: 1;
+      min-width: 0;
+      transition: background-color 0.15s, transform 0.05s;
+      box-shadow: 0 6px 16px rgba(74,108,247,0.25);
+    }
+    
+    .add-button:hover, .export-button:hover, .import-button:hover { background-color: var(--primary-hover); }
+    .add-button:active, .export-button:active, .import-button:active { transform: translateY(1px); }
+    
+    /* Mode下拉菜单样式 */
+    .mode-dropdown {
+      flex: 1;
+      min-width: 0;
+      position: relative;
+    }
+    
+    .mode-button {
+      height: 52px;
+      padding: 0 16px;
+      background-color: var(--primary);
+      color: white;
+      text-align: center;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 700;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background-color 0.15s, transform 0.05s;
+      box-shadow: 0 6px 16px rgba(74,108,247,0.25);
+    }
+
+    .mode-button:hover { background-color: var(--primary-hover); }
+    .mode-button:active { transform: translateY(1px); }
+
+    .mode-dropdown-content {
+      display: none;
+      position: absolute;
+      top: calc(100% + 5px);
+      left: 0;
+      right: 0;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      z-index: 1000;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    .mode-dropdown.active .mode-dropdown-content {
+      display: block;
+    }
+
+    .mode-dropdown-item {
+      padding: 12px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .mode-dropdown-item:last-child {
+      border-bottom: none;
+    }
+
+    .mode-dropdown-item:hover {
+      background-color: #f5f5f5;
+    }
+
+    .add-mode-item { background-color: #f8faff; font-weight: bold; color: var(--primary); }
+
+    .add-mode-input {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .add-mode-input input {
+      flex: 1;
+      padding: 6px 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .add-mode-input button {
+      padding: 6px 12px;
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .selected-indicator {
+      color: #4285f4;
+      font-weight: bold;
+    }
+
+    .chevron-down {
+      width: 16px;
+      height: 16px;
+      transition: transform 0.2s;
+    }
+
+    .mode-dropdown.active .chevron-down {
+      transform: rotate(180deg);
+    }
+    
+    .prompt-item {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      padding: 16px 14px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      margin: 10px 8px;
+      border-radius: 14px;
+      transition: box-shadow 0.15s, transform 0.05s, background-color 0.15s;
+      box-shadow: 0 4px 10px rgba(16,24,40,0.06);
+    }
+    
+    .prompt-item:hover { box-shadow: 0 10px 20px rgba(16,24,40,0.10); }
+
+    .prompt-item.selected { background-color: #e9efff; box-shadow: 0 6px 16px rgba(74, 108, 247, 0.15); }
+    
+    .pinned-button {
+      position: absolute;
+      left: -10px;
+      width: 20px;
+      height: 20px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #999;
+      font-size: 16px;
+      transition: color 0.2s;
+    }
+    
+    .pinned-button:hover {
+      color: #1890ff;
+    }
+    
+    .prompt-info { flex-grow: 1; cursor: pointer; }
+    
+    .prompt-name { font-weight: 800; font-size: 22px; color: var(--text); letter-spacing: 0.3px; }
+    
+    .prompt-content {
+      display: none;
+    }
+    
+    .buttons { display: flex; gap: 12px; }
+    
+    .button {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      min-width: 96px;
+      height: 42px;
+      padding: 0 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: 700;
+      transition: background-color 0.15s, transform 0.05s;
+      box-shadow: 0 6px 12px rgba(74,108,247,0.18);
+    }
+    
+    .button:hover { background: var(--primary-hover); }
+    .button:active { transform: translateY(1px); }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--text); }
+    
+    input, textarea {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    
+    input:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(74,108,247,0.2); }
+    
+    textarea {
+      height: 200px;
+      resize: vertical;
+    }
+    
+    .form-buttons {
+      display: flex;
+      justify-content: flex-start;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    
+    .form-button {
+      padding: 12px 20px;
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: background-color 0.2s;
+    }
+    
+    .form-button:hover {
+      background-color: #3b78e7;
+    }
+    
+    .form-button.cancel {
+      background-color: #f1f1f1;
+      color: #333;
+    }
+    
+    .form-button.cancel:hover {
+      background-color: #e0e0e0;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .toast-message {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      z-index: 10000;
+      font-size: 14px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      opacity: 1;
+      transition: opacity 0.5s ease-in-out;
+    }
+    
+    .view {
+      display: none;
+    }
+    
+    .view.active {
+      display: block;
+    }
+    
+    #prompts-list:empty {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 200px;
+      border: 2px dashed #ccc;
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    
+    #prompts-list:empty::after {
+      content: '暂无提示词，请添加或导入';
+      color: #999;
+      font-size: 16px;
+    }
+    
+    .shortcut-hint { text-align: center; padding: 8px; background: #eef3ff; border-radius: 10px; margin-bottom: 12px; font-size: 13px; color: #2b59ff; }
+  
+    /* 滚动条样式 */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+
+    /* 紧凑布局：适配窄窗口（≤ 480px） */
+    @media (max-width: 480px) {
+      body { padding: 10px; }
+      .content-wrapper { padding: 12px; border-radius: 12px; }
+      .search-input { height: 44px; border-radius: 12px; font-size: 15px; }
+
+      .action-buttons { 
+        display: grid; 
+        grid-template-columns: repeat(3, 1fr); 
+        gap: 8px; 
+        margin-bottom: 10px; 
+      }
+      .mode-dropdown { flex: initial; }
+      .mode-button, .add-button, .export-button, .import-button { 
+        height: 44px; 
+        border-radius: 12px; 
+        font-size: 15px; 
+        padding: 0 10px;
+        box-shadow: 0 4px 10px rgba(74,108,247,0.2);
+      }
+
+      .prompt-item { 
+        grid-template-columns: 1fr; 
+        padding: 12px; 
+        margin: 8px 4px; 
+        border-radius: 12px;
+      }
+      .prompt-name { font-size: 18px; word-break: break-word; }
+      .buttons { 
+        margin-top: 10px; 
+        display: grid; 
+        grid-template-columns: repeat(3, 1fr); 
+        gap: 8px; 
+        width: 100%;
+      }
+      .button { 
+        min-width: 0; 
+        height: 36px; 
+        font-size: 14px; 
+        padding: 0 10px; 
+        border-radius: 10px; 
+        box-shadow: 0 4px 8px rgba(74,108,247,0.18);
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- 顶部自定义标题和快捷提示已移除，避免重复的系统标题栏与冗余信息 -->
+  
+  <div class="content-wrapper">
+    <div id="list-view" class="view active">
+      <div class="search-container">
+        <input type="text" class="search-input" id="search-input" placeholder="Search prompts">
+      </div>
+      
+      <div class="action-buttons">
+        <div class="mode-dropdown" id="mode-dropdown">
+          <button id="mode-button" class="mode-button">
+            <span id="mode-text">看书</span>
+            <svg class="chevron-down" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M7 10l5 5 5-5z"/>
+            </svg>
+          </button>
+          <div class="mode-dropdown-content" id="mode-dropdown-content">
+            <div class="mode-dropdown-item add-mode-item" id="add-mode-item">
+              <span id="add-mode-text">+ Add Mode</span>
+            </div>
+          </div>
+        </div>
+        <button id="export-button" class="export-button">Export</button>
+        <button id="import-button" class="import-button">Import</button>
+      </div>
+      
+      <div id="prompts-list">
+        <!-- 提示词列表会通过JavaScript动态添加 -->
+      </div>
+    </div>
+    
+    <div id="editor-view" class="view">
+      <h1 id="editor-title">添加提示词</h1>
+      
+      <form id="prompt-editor">
+        <input type="hidden" id="prompt-id">
+        <input type="hidden" id="prompt-mode-id">
+        
+        <div class="form-group">
+          <label for="prompt-name">标题</label>
+          <input type="text" id="prompt-name" placeholder="输入提示词标题" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="prompt-content">内容</label>
+          <textarea id="prompt-content" placeholder="输入提示词内容" required></textarea>
+        </div>
+        
+        <div class="form-buttons">
+          <button type="submit" id="save-button" class="form-button">保存</button>
+          <button type="button" id="cancel-button" class="form-button cancel">取消</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
