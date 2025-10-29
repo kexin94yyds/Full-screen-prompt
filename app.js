@@ -215,15 +215,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
       const editBtn = document.createElement('button');
       editBtn.textContent = '编辑';
-      editBtn.style.cssText = `
-        background-color: #4285f4;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        padding: 8px 12px;
-        cursor: pointer;
-        font-size: 14px;
-      `;
+      editBtn.className = 'mode-inline-btn';
       editBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         editMode(mode);
@@ -231,15 +223,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
       const deleteBtn = document.createElement('button');
       deleteBtn.textContent = '删除';
-      deleteBtn.style.cssText = `
-        background-color: #f44336;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        padding: 8px 12px;
-        cursor: pointer;
-        font-size: 14px;
-      `;
+      deleteBtn.className = 'mode-inline-btn danger';
       deleteBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         deleteMode(mode);

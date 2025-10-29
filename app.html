@@ -28,6 +28,30 @@
       flex-direction: column;
       color: var(--text);
     }
+
+    /* 边缘拖拽区域（用于移动无边框窗口） */
+    .window-drag-edge {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      width: 10px;
+      -webkit-app-region: drag;
+      z-index: 9999;
+      /* 完全透明但可交互 */
+      background: transparent;
+    }
+    .window-drag-edge.left { left: 0; }
+    .window-drag-edge.right { right: 0; }
+    .window-drag-top {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 10px;
+      -webkit-app-region: drag;
+      z-index: 9999;
+      background: transparent;
+    }
     
     .header {
       display: flex;
@@ -73,7 +97,7 @@
       box-shadow: var(--shadow);
     }
     
-    .search-container { margin-bottom: 16px; }
+    .search-container { margin-bottom: 10px; }
     
     .search-input {
       width: 100%;
@@ -95,61 +119,56 @@
     
     .action-buttons {
       display: flex;
-      gap: 12px;
-      margin-bottom: 12px;
+      gap: 10px;               /* 行内按钮间距略缩小 */
+      margin-bottom: 10px;     /* 行间距略缩小 */
       width: 100%;
       position: relative; /* 让下拉与按钮组对齐（与插件一致） */
     }
+    /* 顶部按钮默认可见（撤回自动隐藏） */
     
     .add-button, .export-button, .import-button {
-      height: 52px;
-      padding: 0 16px;
-      background-color: var(--primary);
+      padding: 10px 15px;            /* 与插件一致的紧凑尺寸 */
+      background-color: #4285f4;
       color: white;
       text-align: center;
       border: none;
-      border-radius: 14px;
+      border-radius: 8px;
       cursor: pointer;
-      font-size: 16px;
-      font-weight: 700;
+      font-size: 14px;
+      font-weight: 600;
       flex: 1;
       min-width: 0;
-      transition: background-color 0.15s, transform 0.05s;
-      box-shadow: 0 6px 16px rgba(74,108,247,0.25);
+      box-sizing: border-box;
+      box-shadow: none;
     }
-    
-    .add-button:hover, .export-button:hover, .import-button:hover { background-color: var(--primary-hover); }
-    .add-button:active, .export-button:active, .import-button:active { transform: translateY(1px); }
+    .add-button:hover, .export-button:hover, .import-button:hover { background-color: #3b78e7; }
     
     /* Mode下拉菜单样式 */
     .mode-dropdown {
       flex: 1;
       min-width: 0;
-      position: relative;
+      position: static; /* 与插件一致：让下拉相对 .action-buttons 定位 */
     }
     
     .mode-button {
-      height: 52px;
-      padding: 0 16px;
-      background-color: var(--primary);
+      padding: 10px 15px;
+      background-color: #4285f4;
       color: white;
       text-align: center;
       border: none;
-      border-radius: 14px;
+      border-radius: 8px;
       cursor: pointer;
-      font-size: 16px;
-      font-weight: 700;
+      font-size: 14px;
       width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
-      transition: background-color 0.15s, transform 0.05s;
-      box-shadow: 0 6px 16px rgba(74,108,247,0.25);
+      gap: 5px;
+      box-shadow: none;
     }
-
-    .mode-button:hover { background-color: var(--primary-hover); }
-    .mode-button:active { transform: translateY(1px); }
+    .mode-button:hover { background-color: #3b78e7; }
 
     .mode-dropdown-content {
       display: none;
@@ -245,7 +264,7 @@
     .mode-dropdown.active .mode-dropdown-content { display: block; }
 
     .mode-dropdown-item {
-      padding: 10px 15px;
+      padding: 8px 12px;       /* 下拉项更紧凑 */
       cursor: pointer;
       border-bottom: 1px solid #f0f0f0;
       display: flex;
@@ -261,6 +280,20 @@
 
     .selected-indicator { color: #4285f4; font-weight: bold; margin-left: 6px; }
 
+    /* Mode 行内按钮（编辑/删除/上移） */
+    .mode-inline-btn {
+      background-color: #4285f4;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .mode-inline-btn:hover { background-color: #3b78e7; }
+    .mode-inline-btn.danger { background-color: #f44336; }
+    .mode-inline-btn.danger:hover { background-color: #d7372b; }
+
     /* 编辑视图按插件视觉（非模态） */
     #editor-view.view { display: none; }
     #editor-view.view.active { display: block; }
@@ -272,21 +305,17 @@
     
     .prompt-item {
       position: relative;
-      display: grid;
-      grid-template-columns: 1fr auto;
+      display: flex;
+      border-bottom: 1px solid #f0f0f0;
+      padding: 8px 10px;       /* 列表行上下留白缩小 */
+      justify-content: space-between;
       align-items: center;
-      padding: 16px 14px;
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      margin: 10px 8px;
-      border-radius: 14px;
-      transition: box-shadow 0.15s, transform 0.05s, background-color 0.15s;
-      box-shadow: 0 4px 10px rgba(16,24,40,0.06);
+      background: transparent;
+      margin: 0;
+      border-radius: 0;
+      box-shadow: none;
     }
-    
-    .prompt-item:hover { box-shadow: 0 10px 20px rgba(16,24,40,0.10); }
-
-    .prompt-item.selected { background-color: #e9efff; box-shadow: 0 6px 16px rgba(74, 108, 247, 0.15); }
+    .prompt-item.selected { background-color: #e8f0fe; border-radius: 6px; }
     
     .pinned-button {
       position: absolute;
@@ -307,32 +336,20 @@
     }
     
     .prompt-info { flex-grow: 1; cursor: pointer; }
-    
-    .prompt-name { font-weight: 800; font-size: 22px; color: var(--text); letter-spacing: 0.3px; }
-    
-    .prompt-content {
-      display: none;
-    }
-    
-    .buttons { display: flex; gap: 12px; }
-    
+    .prompt-name { font-weight: bold; font-size: 16px; color: var(--text); }
+    .prompt-content { display: none; }
+    .buttons { display: flex; gap: 6px; }  /* 右侧按钮间距略缩小 */
     .button {
-      background-color: var(--primary);
+      background-color: #4285f4;
       color: white;
       border: none;
-      min-width: 96px;
-      height: 42px;
-      padding: 0 16px;
-      border-radius: 12px;
+      padding: 8px 12px;
+      border-radius: 6px;
       cursor: pointer;
-      font-size: 16px;
-      font-weight: 700;
-      transition: background-color 0.15s, transform 0.05s;
-      box-shadow: 0 6px 12px rgba(74,108,247,0.18);
+      font-size: 14px;
+      box-shadow: none;
     }
-    
-    .button:hover { background: var(--primary-hover); }
-    .button:active { transform: translateY(1px); }
+    .button:hover { background: #3b78e7; }
     
     .form-group {
       margin-bottom: 15px;
@@ -501,7 +518,11 @@
   </style>
 </head>
 <body>
-  
+  <!-- 边缘拖拽区域：靠近左右与顶部时可拖动窗口 -->
+  <div class="window-drag-edge left"></div>
+  <div class="window-drag-edge right"></div>
+  <div class="window-drag-top"></div>
+
   <!-- 顶部自定义标题和快捷提示已移除，避免重复的系统标题栏与冗余信息 -->
   
   <div class="content-wrapper">

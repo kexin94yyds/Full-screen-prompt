@@ -50,8 +50,9 @@ function createWindow() {
     x: Math.floor((width - 394) / 2),
     y: Math.floor((height - 646) / 2),
     show: false,
-    frame: true,
-    titleBarStyle: 'hiddenInset',
+    // 使用无边框窗口以隐藏 macOS 左上角三色按钮
+    frame: false,
+    // 无需额外的标题栏样式
     title: '',
     resizable: true,
     transparent: false,
