@@ -307,13 +307,14 @@
       position: relative;
       display: flex;
       border-bottom: 1px solid #f0f0f0;
-      padding: 8px 10px;       /* 列表行上下留白缩小 */
+      padding: 10px 12px;      /* 适中的内边距 */
       justify-content: space-between;
       align-items: center;
       background: transparent;
       margin: 0;
       border-radius: 0;
       box-shadow: none;
+      gap: 16px;               /* 适中的第一列和第二列之间的间距 */
     }
     .prompt-item.selected { background-color: #e8f0fe; border-radius: 6px; }
     
@@ -335,19 +336,29 @@
       color: #1890ff;
     }
     
-    .prompt-info { flex-grow: 1; cursor: pointer; }
-    .prompt-name { font-weight: bold; font-size: 16px; color: var(--text); }
+    .prompt-info { flex-grow: 1; cursor: pointer; min-width: 100px; max-width: 180px; }  /* 设置合适的宽度范围，防止文字被压缩又不会占用太多空间 */
+    .prompt-name { 
+      font-weight: bold; 
+      font-size: 15px;      /* 稍微缩小字体 */
+      color: var(--text);
+      letter-spacing: 1.5px;  /* 进一步减小字符间距 */
+      writing-mode: horizontal-tb;  /* 确保横向显示 */
+      white-space: nowrap;  /* 防止文字换行 */
+      overflow: hidden;     /* 隐藏溢出 */
+      text-overflow: ellipsis;  /* 超长显示省略号 */
+    }
     .prompt-content { display: none; }
-    .buttons { display: flex; gap: 6px; }  /* 右侧按钮间距略缩小 */
+    .buttons { display: flex; gap: 4px; flex-shrink: 0; }  /* 按钮间距 */
     .button {
       background-color: #4285f4;
       color: white;
       border: none;
-      padding: 8px 12px;
-      border-radius: 6px;
+      padding: 5px 8px;     /* 缩小按钮内边距 */
+      border-radius: 5px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 12px;      /* 缩小字体 */
       box-shadow: none;
+      white-space: nowrap;  /* 防止按钮文字换行 */
     }
     .button:hover { background: #3b78e7; }
     
@@ -452,23 +463,22 @@
     
     .shortcut-hint { text-align: center; padding: 8px; background: #eef3ff; border-radius: 10px; margin-bottom: 12px; font-size: 13px; color: #2b59ff; }
   
-    /* 滚动条样式 */
+    /* 隐藏滚动条但保持滚动功能 */
     ::-webkit-scrollbar {
-      width: 8px;
+      width: 0;
+      display: none;
     }
     
     ::-webkit-scrollbar-track {
-      background: #f1f1f1;
-      border-radius: 4px;
+      display: none;
     }
     
     ::-webkit-scrollbar-thumb {
-      background: #888;
-      border-radius: 4px;
+      display: none;
     }
     
     ::-webkit-scrollbar-thumb:hover {
-      background: #555;
+      display: none;
     }
 
     /* 紧凑布局：适配窄窗口（≤ 480px） */

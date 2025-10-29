@@ -312,14 +312,6 @@ document.addEventListener('DOMContentLoaded', function() {
       const buttons = document.createElement('div');
       buttons.className = 'buttons';
       
-      const copyButton = document.createElement('button');
-      copyButton.className = 'button';
-      copyButton.textContent = '复制';
-      copyButton.addEventListener('click', function(e) {
-        e.stopPropagation();
-        copyToClipboard(prompt.content);
-      });
-      
       const editButton = document.createElement('button');
       editButton.className = 'button';
       editButton.textContent = '编辑';
@@ -336,7 +328,6 @@ document.addEventListener('DOMContentLoaded', function() {
         deletePrompt(prompt.id);
       });
       
-      buttons.appendChild(copyButton);
       buttons.appendChild(editButton);
       buttons.appendChild(deleteButton);
       
@@ -1093,14 +1084,6 @@ document.addEventListener('DOMContentLoaded', function() {
       const buttons = document.createElement('div');
       buttons.className = 'buttons';
       
-      const copyButton = document.createElement('button');
-      copyButton.className = 'button';
-      copyButton.textContent = '复制';
-      copyButton.addEventListener('click', function(e) {
-        e.stopPropagation();
-        copyToClipboard(prompt.content);
-      });
-      
       const editButton = document.createElement('button');
       editButton.className = 'button';
       editButton.textContent = '编辑';
@@ -1117,7 +1100,6 @@ document.addEventListener('DOMContentLoaded', function() {
         deletePrompt(prompt.id);
       });
       
-      buttons.appendChild(copyButton);
       buttons.appendChild(editButton);
       buttons.appendChild(deleteButton);
       
