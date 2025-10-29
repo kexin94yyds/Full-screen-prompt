@@ -6,7 +6,6 @@ const path = require('path');
 const store = new Store();
 
 let mainWindow = null;
-let lastShowAt = 0; // 记录最近一次显示时间，用于忽略刚显示时的 blur
 
 // 创建主窗口
 function createWindow() {
@@ -54,9 +53,6 @@ function createWindow() {
 
   // 失去焦点时隐藏窗口
   mainWindow.on('blur', () => {
-    // 如果是刚显示后的短暂失焦（切 Space/全屏/层级切换），忽略本次隐藏
-    const elapsed = Date.now() - lastShowAt;
-    if (elapsed < 800) return;
     // 延迟隐藏，以便用户可以点击窗口内的按钮
     setTimeout(() => {
       if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isFocused()) {
@@ -64,37 +60,6 @@ function createWindow() {
       }
     }, 200);
   });
-}
-
-// 在当前活动的 Space/全屏上显示窗口，并跟随鼠标所在显示器
-function showOnActiveSpace() {
-  if (!mainWindow) return;
-
-  // 定位到鼠标所在显示器居中
-  const cursorPoint = screen.getCursorScreenPoint();
-  const display = screen.getDisplayNearestPoint(cursorPoint);
-  const workArea = display.workArea; // { x, y, width, height }
-  const { width: winW, height: winH } = mainWindow.getBounds();
-  const targetX = Math.round(workArea.x + (workArea.width - winW) / 2);
-  const targetY = Math.round(workArea.y + (workArea.height - winH) / 3); // 稍微靠上
-  mainWindow.setPosition(targetX, targetY);
-
-  // 临时允许跨所有工作区（含全屏）显示以避免切 Space
-  try { mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
-  // 提升层级，确保覆盖全屏
-  try { mainWindow.setAlwaysOnTop(true, 'screen-saver'); } catch (_) {}
-
-  mainWindow.show();
-  mainWindow.focus();
-  lastShowAt = Date.now();
-
-  // 显示后短暂延时再还原到当前 Space，避免后续空间切换副作用
-  setTimeout(() => {
-    try { mainWindow.setVisibleOnAllWorkspaces(false); } catch (_) {}
-  }, 100);
-
-  // 通知渲染进程窗口已显示，可以聚焦搜索框
-  mainWindow.webContents.send('window-shown');
 }
 
 // 切换窗口显示/隐藏
@@ -106,7 +71,11 @@ function toggleWindow() {
   if (mainWindow.isVisible()) {
     mainWindow.hide();
   } else {
-    showOnActiveSpace();
+    mainWindow.show();
+    mainWindow.focus();
+    
+    // 通知渲染进程窗口已显示，可以聚焦搜索框
+    mainWindow.webContents.send('window-shown');
   }
 }
 
