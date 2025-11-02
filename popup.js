@@ -258,12 +258,45 @@ document.addEventListener('DOMContentLoaded', function() {
   function displayPrompts(prompts, searchTerm = '') {
     promptsList.innerHTML = '';
     
-    const filteredPrompts = searchTerm 
-      ? prompts.filter(p => 
-          p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-          p.content.toLowerCase().includes(searchTerm.toLowerCase())
+    let filteredPrompts;
+    if (searchTerm) {
+      const lowerSearchTerm = searchTerm.toLowerCase();
+      
+      // 过滤并计算匹配分数
+      filteredPrompts = prompts
+        .filter(p => 
+          p.name.toLowerCase().includes(lowerSearchTerm) || 
+          p.content.toLowerCase().includes(lowerSearchTerm)
         )
-      : prompts;
+        .map(p => {
+          const lowerName = p.name.toLowerCase();
+          const lowerContent = p.content.toLowerCase();
+          let score = 0;
+          
+          // 标题完全匹配 - 最高优先级
+          if (lowerName === lowerSearchTerm) {
+            score = 1000;
+          }
+          // 标题开头匹配 - 高优先级
+          else if (lowerName.startsWith(lowerSearchTerm)) {
+            score = 500;
+          }
+          // 标题包含匹配 - 中高优先级
+          else if (lowerName.includes(lowerSearchTerm)) {
+            score = 100;
+          }
+          // 内容匹配 - 普通优先级
+          else if (lowerContent.includes(lowerSearchTerm)) {
+            score = 10;
+          }
+          
+          return { ...p, score };
+        })
+        // 按分数降序排序（分数高的在前）
+        .sort((a, b) => b.score - a.score);
+    } else {
+      filteredPrompts = prompts;
+    }
     
     filteredPrompts.forEach(function(prompt, index) {
       const promptItem = document.createElement('div');
@@ -1053,11 +1086,40 @@ document.addEventListener('DOMContentLoaded', function() {
   function displayGlobalSearchResults(prompts, searchTerm) {
     promptsList.innerHTML = '';
     
-    // 搜索所有提示词
-    const searchResults = prompts.filter(p => 
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      p.content.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    
+    // 过滤并计算匹配分数，然后排序
+    const searchResults = prompts
+      .filter(p => 
+        p.name.toLowerCase().includes(lowerSearchTerm) || 
+        p.content.toLowerCase().includes(lowerSearchTerm)
+      )
+      .map(p => {
+        const lowerName = p.name.toLowerCase();
+        const lowerContent = p.content.toLowerCase();
+        let score = 0;
+        
+        // 标题完全匹配 - 最高优先级
+        if (lowerName === lowerSearchTerm) {
+          score = 1000;
+        }
+        // 标题开头匹配 - 高优先级
+        else if (lowerName.startsWith(lowerSearchTerm)) {
+          score = 500;
+        }
+        // 标题包含匹配 - 中高优先级
+        else if (lowerName.includes(lowerSearchTerm)) {
+          score = 100;
+        }
+        // 内容匹配 - 普通优先级
+        else if (lowerContent.includes(lowerSearchTerm)) {
+          score = 10;
+        }
+        
+        return { ...p, score };
+      })
+      // 按分数降序排序（分数高的在前）
+      .sort((a, b) => b.score - a.score);
     
     if (searchResults.length === 0) {
       const noResultsDiv = document.createElement('div');

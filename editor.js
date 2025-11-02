@@ -1,10 +1,8 @@
 // DOM元素
 const editorForm = document.getElementById('editor-form');
-const editorTitle = document.getElementById('editor-title');
 const promptIdInput = document.getElementById('prompt-id');
 const promptNameInput = document.getElementById('prompt-name');
 const promptContentInput = document.getElementById('prompt-content');
-const saveButton = document.getElementById('save-button');
 const cancelButton = document.getElementById('cancel-button');
 
 // 初始化
@@ -14,8 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const isEditing = urlParams.get('edit') === 'true';
   
   if (isEditing) {
-    editorTitle.textContent = '编辑提示词';
-    
     // 从存储获取正在编辑的提示词ID
     chrome.storage.local.get(['editingPromptId', 'prompts'], (result) => {
       const editingId = result.editingPromptId;
@@ -30,7 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   } else {
-    editorTitle.textContent = '添加提示词';
     promptIdInput.value = '';
   }
   

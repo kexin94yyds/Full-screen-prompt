@@ -1,20 +1,46 @@
 {
   "name": "prompt-library-mac",
+  "productName": "Prompter",
   "version": "2.0.0",
   "description": "Mac 原生提示词库应用 - 支持全局快捷键呼出",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --dev"
+    "dev": "electron . --dev",
+    "build": "electron-builder --mac --dir",
+    "build:dmg": "electron-builder --mac dmg"
   },
-  "keywords": ["prompt", "library", "productivity", "electron", "mac"],
+  "keywords": [
+    "prompt",
+    "library",
+    "productivity",
+    "electron",
+    "mac"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^28.0.0"
+    "electron": "^28.0.0",
+    "electron-builder": "^24.13.3"
   },
   "dependencies": {
     "electron-store": "^8.1.0"
+  },
+  "build": {
+    "appId": "com.prompter.app",
+    "productName": "Prompter",
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "images/icon1024.png"
+    },
+    "files": [
+      "**/*",
+      "!**/*.md",
+      "!dist/**/*",
+      "!.git/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    }
   }
 }
-

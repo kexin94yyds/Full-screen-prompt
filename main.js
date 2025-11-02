@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, screen } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, screen, dialog } = require('electron');
 const Store = require('electron-store');
 const path = require('path');
 const { exec } = require('child_process');
@@ -15,6 +15,63 @@ if (!gotTheLock) {
 let mainWindow = null;
 let lastShowAt = 0; // 记录最近一次显示时间，用于忽略刚显示时的 blur
 let lastFrontAppName = null; // 记录唤起窗口前的前台应用名称
+
+// 判断是否为 macOS TCC 无辅助功能权限（1002）错误
+function isTccDeniedError(err) {
+  const msg = String((err && (err.stderr || err.message)) || '');
+  return msg.includes('不允许发送按键') || msg.includes('not allowed to send keystrokes') || msg.includes(' 1002');
+}
+
+// 打开系统“隐私与安全性 > 辅助功能”设置页（尽量兼容不同版本）
+function openAccessibilityPane() {
+  // 方式一：通过 x-apple 链接直接打开对应设置页
+  try { exec('open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"'); } catch (_) {}
+  // 方式二：回退到 AppleScript 定位到隐私-辅助功能（兼容不同系统版本）
+  setTimeout(() => {
+    const osaScript = `
+try
+tell application "System Settings"
+  reveal anchor "Privacy_Accessibility" of pane id "com.apple.preference.security"
+  activate
+end tell
+end try
+try
+tell application "System Preferences"
+  reveal anchor "Privacy_Accessibility" of pane id "com.apple.preference.security"
+  activate
+end tell
+end try
+`.trim();
+    try { exec(`osascript -e '${osaScript}'`); } catch (_) {}
+  }, 150);
+}
+
+// 首次遇到 TCC 拒绝时给出友好指引
+async function promptAccessibilityOnce() {
+  const key = 'tcc.accessibility.prompted';
+  const prompted = !!store.get(key);
+  if (!prompted) store.set(key, true);
+
+  const detailCn = [
+    'macOS 拒绝了自动粘贴（辅助功能权限未开启）。',
+    '请前往：系统设置 → 隐私与安全性 → 辅助功能，',
+    '勾选“Electron”（开发环境下显示为 Electron），并重启应用。',
+    '如果是从终端启动，也可能需要勾选“终端/Terminal（或 iTerm）”。',
+  ].join('\n');
+
+  const result = await dialog.showMessageBox({
+    type: 'info',
+    buttons: ['打开设置', '知道了'],
+    defaultId: 0,
+    cancelId: 1,
+    title: '需要授权：辅助功能权限',
+    message: '启用辅助功能权限以允许自动粘贴',
+    detail: detailCn
+  });
+  if (result.response === 0) {
+    openAccessibilityPane();
+  }
+}
 
 // 获取当前前台应用的名称
 function getFrontmostAppName() {
@@ -45,10 +102,10 @@ function createWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   
   mainWindow = new BrowserWindow({
-    width: 394,
-    height: 646,
-    x: Math.floor((width - 394) / 2),
-    y: Math.floor((height - 646) / 2),
+    width: 360,
+    height: 580,
+    x: Math.floor((width - 360) / 2),
+    y: Math.floor((height - 580) / 2),
     show: false,
     // 使用无边框窗口以隐藏 macOS 左上角三色按钮
     frame: false,
@@ -90,8 +147,12 @@ function createWindow() {
     const elapsed = Date.now() - lastShowAt;
     if (elapsed < 800) return;
     setTimeout(() => {
-      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isFocused()) {
-        mainWindow.hide();
+      try {
+        if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isFocused()) {
+          mainWindow.hide();
+        }
+      } catch (err) {
+        // 忽略错误
       }
     }, 200);
   });
@@ -99,7 +160,7 @@ function createWindow() {
 
 // 在当前活动 Space/全屏上显示，并跟随鼠标所在显示器
 async function showOnActiveSpace() {
-  if (!mainWindow) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
   // 记录唤起窗口前的前台应用
   try { lastFrontAppName = await getFrontmostAppName(); } catch (_) {}
 
@@ -125,19 +186,34 @@ async function showOnActiveSpace() {
     try { mainWindow.setVisibleOnAllWorkspaces(false); } catch (_) {}
   }, 200);
 
-  mainWindow.webContents.send('window-shown');
+  // 安全地发送消息，检查窗口状态
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
+    try {
+      mainWindow.webContents.send('window-shown');
+    } catch (err) {
+      // 忽略发送错误，避免崩溃
+    }
+  }
 }
 
 // 切换窗口显示/隐藏
 async function toggleWindow() {
-  if (!mainWindow) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
     createWindow();
+    return;
   }
 
-  if (mainWindow.isVisible()) {
-    mainWindow.hide();
-  } else {
-    await showOnActiveSpace();
+  try {
+    if (mainWindow.isVisible()) {
+      mainWindow.hide();
+    } else {
+      await showOnActiveSpace();
+    }
+  } catch (err) {
+    // 如果窗口已销毁，重新创建
+    if (mainWindow.isDestroyed()) {
+      createWindow();
+    }
   }
 }
 
@@ -166,11 +242,15 @@ app.whenReady().then(() => {
 
 // 二次启动时聚焦现有窗口
 app.on('second-instance', () => {
-  if (mainWindow) {
-    if (!mainWindow.isVisible()) {
-      showOnActiveSpace();
-    } else {
-      mainWindow.focus();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try {
+      if (!mainWindow.isVisible()) {
+        showOnActiveSpace();
+      } else {
+        mainWindow.focus();
+      }
+    } catch (err) {
+      // 忽略错误
     }
   }
 });
@@ -276,9 +356,12 @@ ipcMain.handle('paste-text', async () => {
         end tell
       `;
       
-      exec(`osascript -e '${script}'`, (error, stdout, stderr) => {
+      exec(`osascript -e '${script}'`, async (error, stdout, stderr) => {
         if (error) {
           console.error('粘贴失败:', error);
+          if (isTccDeniedError(error)) {
+            try { await promptAccessibilityOnce(); } catch (_) {}
+          }
           reject(error);
         } else {
           resolve(true);
@@ -311,9 +394,12 @@ ipcMain.handle('insert-and-paste', async (event, text) => {
         tell application "System Events" to keystroke "v" using command down
       `
       : `tell application "System Events" to keystroke "v" using command down`;
-    exec(`osascript -e '${script}'`, (error) => {
+    exec(`osascript -e '${script}'`, async (error) => {
       if (error) {
         console.error('粘贴失败:', error);
+        if (isTccDeniedError(error)) {
+          try { await promptAccessibilityOnce(); } catch (_) {}
+        }
         reject(error);
       } else {
         resolve(true);

@@ -294,13 +294,35 @@
     .mode-inline-btn.danger { background-color: #f44336; }
     .mode-inline-btn.danger:hover { background-color: #d7372b; }
 
-    /* 编辑视图按插件视觉（非模态） */
+    /* 编辑视图：简洁样式 */
     #editor-view.view { display: none; }
-    #editor-view.view.active { display: block; }
-    #editor-view input, #editor-view textarea {
-      border: 1px solid #ddd;
-      border-radius: 8px;
+    #editor-view.view.active { display: block; padding: 10px; }
+    
+    #editor-view #prompt-name {
+      border: 2px solid #000;
+      border-radius: 12px;
+      padding: 16px 20px;
+      font-size: 16px;
       box-shadow: none;
+    }
+    
+    #editor-view #prompt-name:focus {
+      border-color: #4285f4;
+    }
+    
+    #editor-view #prompt-content {
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 20px;
+      font-size: 16px;
+      background-color: #f8f8f8;
+      min-height: 300px;
+      box-shadow: none;
+    }
+    
+    #editor-view #prompt-content:focus {
+      border-color: #4285f4;
+      background-color: #fff;
     }
     
     .prompt-item {
@@ -316,7 +338,10 @@
       box-shadow: none;
       gap: 16px;               /* 适中的第一列和第二列之间的间距 */
     }
-    .prompt-item.selected { background-color: #e8f0fe; border-radius: 6px; }
+    .prompt-item.selected { 
+      background-color: #e8f0fe; 
+      border-radius: 6px;
+    }
     
     .pinned-button {
       position: absolute;
@@ -363,10 +388,8 @@
     .button:hover { background: #3b78e7; }
     
     .form-group {
-      margin-bottom: 15px;
+      margin-bottom: 20px;
     }
-    
-    label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--text); }
     
     input, textarea {
       width: 100%;
@@ -388,33 +411,36 @@
     .form-buttons {
       display: flex;
       justify-content: flex-start;
-      gap: 10px;
-      margin-top: 15px;
+      gap: 15px;
+      margin-top: 20px;
     }
     
     .form-button {
-      padding: 12px 20px;
-      background-color: #4285f4;
-      color: white;
+      padding: 14px 32px;
       border: none;
       border-radius: 8px;
       cursor: pointer;
-      font-size: 14px;
-      font-weight: 600;
-      transition: background-color 0.2s;
+      font-size: 16px;
+      font-weight: 500;
+      transition: all 0.2s;
     }
     
-    .form-button:hover {
-      background-color: #3b78e7;
+    #save-button {
+      background-color: #5b8ff9;
+      color: white;
     }
     
-    .form-button.cancel {
-      background-color: #f1f1f1;
+    #save-button:hover {
+      background-color: #4a7ee0;
+    }
+    
+    #cancel-button {
+      background-color: #f5f5f5;
       color: #333;
     }
     
-    .form-button.cancel:hover {
-      background-color: #e0e0e0;
+    #cancel-button:hover {
+      background-color: #e8e8e8;
     }
     
     .hidden {
@@ -565,25 +591,21 @@
     </div>
     
     <div id="editor-view" class="view">
-      <h1 id="editor-title">添加提示词</h1>
-      
       <form id="prompt-editor">
         <input type="hidden" id="prompt-id">
         <input type="hidden" id="prompt-mode-id">
         
         <div class="form-group">
-          <label for="prompt-name">标题</label>
-          <input type="text" id="prompt-name" placeholder="输入提示词标题" required>
+          <input type="text" id="prompt-name" placeholder="Title" required>
         </div>
         
         <div class="form-group">
-          <label for="prompt-content">内容</label>
-          <textarea id="prompt-content" placeholder="输入提示词内容" required></textarea>
+          <textarea id="prompt-content" placeholder="Prompts" required></textarea>
         </div>
         
         <div class="form-buttons">
           <button type="submit" id="save-button" class="form-button">保存</button>
-          <button type="button" id="cancel-button" class="form-button cancel">取消</button>
+          <button type="button" id="cancel-button" class="form-button cancel">关闭</button>
         </div>
       </form>
     </div>

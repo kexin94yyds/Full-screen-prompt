@@ -269,12 +269,45 @@ document.addEventListener('DOMContentLoaded', function() {
   function displayPrompts(prompts, searchTerm = '') {
     promptsList.innerHTML = '';
     
-    const filteredPrompts = searchTerm 
-      ? prompts.filter(p => 
-          p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-          p.content.toLowerCase().includes(searchTerm.toLowerCase())
+    let filteredPrompts;
+    if (searchTerm) {
+      const lowerSearchTerm = searchTerm.toLowerCase();
+      
+      // 过滤并计算匹配分数
+      filteredPrompts = prompts
+        .filter(p => 
+          p.name.toLowerCase().includes(lowerSearchTerm) || 
+          p.content.toLowerCase().includes(lowerSearchTerm)
         )
-      : prompts;
+        .map(p => {
+          const lowerName = p.name.toLowerCase();
+          const lowerContent = p.content.toLowerCase();
+          let score = 0;
+          
+          // 标题完全匹配 - 最高优先级
+          if (lowerName === lowerSearchTerm) {
+            score = 1000;
+          }
+          // 标题开头匹配 - 高优先级
+          else if (lowerName.startsWith(lowerSearchTerm)) {
+            score = 500;
+          }
+          // 标题包含匹配 - 中高优先级
+          else if (lowerName.includes(lowerSearchTerm)) {
+            score = 100;
+          }
+          // 内容匹配 - 普通优先级
+          else if (lowerContent.includes(lowerSearchTerm)) {
+            score = 10;
+          }
+          
+          return { ...p, score };
+        })
+        // 按分数降序排序（分数高的在前）
+        .sort((a, b) => b.score - a.score);
+    } else {
+      filteredPrompts = prompts;
+    }
     
     filteredPrompts.forEach(function(prompt, index) {
       const promptItem = document.createElement('div');
@@ -595,7 +628,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function editPrompt(prompt) {
-    document.getElementById('editor-title').textContent = '编辑提示词';
     document.getElementById('prompt-id').value = prompt.id;
     document.getElementById('prompt-mode-id').value = prompt.modeId || currentMode.id;
     document.getElementById('prompt-name').value = prompt.name;
@@ -743,81 +775,130 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const dialogContent = document.createElement('div');
     dialogContent.style.width = '90%';
-    dialogContent.style.maxWidth = '550px';
+    dialogContent.style.maxWidth = '600px';
     dialogContent.style.backgroundColor = 'white';
     dialogContent.style.borderRadius = '12px';
-    dialogContent.style.padding = '24px';
+    dialogContent.style.padding = '30px';
     dialogContent.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.2)';
     dialogContent.style.maxHeight = '90vh';
     dialogContent.style.overflowY = 'auto';
     
-    const title = document.createElement('h2');
-    title.textContent = '导入提示词';
-    title.style.margin = '0 0 15px 0';
-    title.style.fontSize = '20px';
-    
-    const instructions = document.createElement('p');
-    instructions.textContent = '请输入提示词内容（格式：标题和内容用空行分隔）';
-    instructions.style.marginBottom = '15px';
-    instructions.style.color = '#666';
-    
     importTextarea = document.createElement('textarea');
     importTextarea.style.width = '100%';
-    importTextarea.style.height = '200px';
-    importTextarea.style.padding = '12px';
-    importTextarea.style.borderRadius = '8px';
-    importTextarea.style.border = '2px solid #ddd';
-    importTextarea.style.marginBottom = '15px';
+    importTextarea.style.minHeight = '300px';
+    importTextarea.style.padding = '20px';
+    importTextarea.style.borderRadius = '12px';
+    importTextarea.style.border = '2px solid #e0e0e0';
+    importTextarea.style.marginBottom = '20px';
     importTextarea.style.resize = 'vertical';
     importTextarea.style.fontFamily = 'inherit';
     importTextarea.style.fontSize = '14px';
+    importTextarea.style.backgroundColor = '#f8f8f8';
+    importTextarea.style.outline = 'none';
+    importTextarea.style.transition = 'border-color 0.2s, background-color 0.2s';
+    importTextarea.style.lineHeight = '1.6';
     importTextarea.placeholder = '示例：\n标题1\n内容1\n\n标题2\n内容2';
+    
+    importTextarea.addEventListener('focus', () => {
+      importTextarea.style.borderColor = '#4285f4';
+      importTextarea.style.backgroundColor = '#fff';
+    });
+    
+    importTextarea.addEventListener('blur', () => {
+      importTextarea.style.borderColor = '#e0e0e0';
+      importTextarea.style.backgroundColor = '#f8f8f8';
+    });
     
     const buttonContainer = document.createElement('div');
     buttonContainer.style.display = 'flex';
-    buttonContainer.style.justifyContent = 'flex-end';
-    buttonContainer.style.gap = '10px';
-    buttonContainer.style.marginBottom = '10px';
+    buttonContainer.style.flexDirection = 'row';
+    buttonContainer.style.justifyContent = 'space-between';
+    buttonContainer.style.alignItems = 'center';
+    buttonContainer.style.gap = '12px';
     
     deleteAllButton = document.createElement('button');
-    deleteAllButton.textContent = '清空当前模式';
-    deleteAllButton.style.padding = '10px 15px';
-    deleteAllButton.style.backgroundColor = '#f44336';
+    deleteAllButton.textContent = '清空';
+    deleteAllButton.style.padding = '8px 16px';
+    deleteAllButton.style.backgroundColor = '#ff4757';
     deleteAllButton.style.color = 'white';
     deleteAllButton.style.border = 'none';
     deleteAllButton.style.borderRadius = '8px';
     deleteAllButton.style.cursor = 'pointer';
     deleteAllButton.style.fontSize = '14px';
-    deleteAllButton.style.fontWeight = '600';
+    deleteAllButton.style.fontWeight = '500';
+    deleteAllButton.style.transition = 'all 0.2s ease';
+    deleteAllButton.style.boxShadow = '0 2px 8px rgba(255, 71, 87, 0.3)';
+    
+    deleteAllButton.addEventListener('mouseenter', () => {
+      deleteAllButton.style.backgroundColor = '#ee3a4a';
+      deleteAllButton.style.transform = 'translateY(-1px)';
+      deleteAllButton.style.boxShadow = '0 4px 12px rgba(255, 71, 87, 0.4)';
+    });
+    deleteAllButton.addEventListener('mouseleave', () => {
+      deleteAllButton.style.backgroundColor = '#ff4757';
+      deleteAllButton.style.transform = 'translateY(0)';
+      deleteAllButton.style.boxShadow = '0 2px 8px rgba(255, 71, 87, 0.3)';
+    });
+    
+    const rightButtons = document.createElement('div');
+    rightButtons.style.display = 'flex';
+    rightButtons.style.flexDirection = 'row';
+    rightButtons.style.alignItems = 'center';
+    rightButtons.style.gap = '12px';
     
     cancelImportButton = document.createElement('button');
     cancelImportButton.textContent = '取消';
-    cancelImportButton.style.padding = '10px 15px';
-    cancelImportButton.style.backgroundColor = '#f1f1f1';
-    cancelImportButton.style.color = '#333';
-    cancelImportButton.style.border = 'none';
+    cancelImportButton.style.padding = '8px 20px';
+    cancelImportButton.style.backgroundColor = '#f5f5f5';
+    cancelImportButton.style.color = '#666';
+    cancelImportButton.style.border = '1px solid #e0e0e0';
     cancelImportButton.style.borderRadius = '8px';
     cancelImportButton.style.cursor = 'pointer';
     cancelImportButton.style.fontSize = '14px';
-    cancelImportButton.style.fontWeight = '600';
+    cancelImportButton.style.fontWeight = '500';
+    cancelImportButton.style.transition = 'all 0.2s ease';
+    
+    cancelImportButton.addEventListener('mouseenter', () => {
+      cancelImportButton.style.backgroundColor = '#ebebeb';
+      cancelImportButton.style.borderColor = '#d0d0d0';
+      cancelImportButton.style.transform = 'translateY(-1px)';
+    });
+    cancelImportButton.addEventListener('mouseleave', () => {
+      cancelImportButton.style.backgroundColor = '#f5f5f5';
+      cancelImportButton.style.borderColor = '#e0e0e0';
+      cancelImportButton.style.transform = 'translateY(0)';
+    });
     
     importButton2 = document.createElement('button');
     importButton2.textContent = '导入';
-    importButton2.style.padding = '10px 15px';
-    importButton2.style.backgroundColor = '#4285f4';
+    importButton2.style.padding = '8px 20px';
+    importButton2.style.backgroundColor = '#5b8ff9';
     importButton2.style.color = 'white';
     importButton2.style.border = 'none';
     importButton2.style.borderRadius = '8px';
     importButton2.style.cursor = 'pointer';
     importButton2.style.fontSize = '14px';
-    importButton2.style.fontWeight = '600';
+    importButton2.style.fontWeight = '500';
+    importButton2.style.transition = 'all 0.2s ease';
+    importButton2.style.boxShadow = '0 2px 8px rgba(91, 143, 249, 0.3)';
+    
+    importButton2.addEventListener('mouseenter', () => {
+      importButton2.style.backgroundColor = '#4a7ee0';
+      importButton2.style.transform = 'translateY(-1px)';
+      importButton2.style.boxShadow = '0 4px 12px rgba(91, 143, 249, 0.4)';
+    });
+    importButton2.addEventListener('mouseleave', () => {
+      importButton2.style.backgroundColor = '#5b8ff9';
+      importButton2.style.transform = 'translateY(0)';
+      importButton2.style.boxShadow = '0 2px 8px rgba(91, 143, 249, 0.3)';
+    });
+    
+    rightButtons.appendChild(cancelImportButton);
+    rightButtons.appendChild(importButton2);
     
     buttonContainer.appendChild(deleteAllButton);
-    buttonContainer.appendChild(cancelImportButton);
-    buttonContainer.appendChild(importButton2);
+    buttonContainer.appendChild(rightButtons);
     
-    dialogContent.appendChild(title);
-    dialogContent.appendChild(instructions);
     dialogContent.appendChild(importTextarea);
     dialogContent.appendChild(buttonContainer);
     
@@ -960,7 +1041,18 @@ document.addEventListener('DOMContentLoaded', function() {
       
     } catch (err) {
       console.error('插入失败:', err);
-      showToast('插入失败');
+      // 针对 macOS 权限导致的粘贴受阻（TCC 1002）给出友好提示
+      const msg = String(err && err.message || '');
+      const isTccDenied = msg.includes('不允许发送按键') || msg.includes('not allowed to send keystrokes') || msg.includes(' 1002');
+
+      // 文本已在主进程写入剪贴板，这里只做提示并收起窗口
+      try { await window.electronAPI.window.hide(); } catch (_) {}
+
+      if (isTccDenied) {
+        showToast('已复制到剪贴板，请手动按 ⌘V 粘贴');
+      } else {
+        showToast('已复制到剪贴板，请手动按 ⌘V 粘贴');
+      }
     }
   }
 
@@ -1013,10 +1105,45 @@ document.addEventListener('DOMContentLoaded', function() {
   function displayGlobalSearchResults(prompts, searchTerm) {
     promptsList.innerHTML = '';
     
-    const searchResults = prompts.filter(p => 
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      p.content.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    console.log('🔍 搜索词:', searchTerm);
+    
+    // 过滤并计算匹配分数，然后排序
+    const searchResults = prompts
+      .filter(p => 
+        p.name.toLowerCase().includes(lowerSearchTerm) || 
+        p.content.toLowerCase().includes(lowerSearchTerm)
+      )
+      .map(p => {
+        const lowerName = p.name.toLowerCase();
+        const lowerContent = p.content.toLowerCase();
+        let score = 0;
+        
+        // 标题完全匹配 - 最高优先级
+        if (lowerName === lowerSearchTerm) {
+          score = 1000;
+        }
+        // 标题开头匹配 - 高优先级
+        else if (lowerName.startsWith(lowerSearchTerm)) {
+          score = 500;
+        }
+        // 标题包含匹配 - 中高优先级
+        else if (lowerName.includes(lowerSearchTerm)) {
+          score = 100;
+        }
+        // 内容匹配 - 普通优先级
+        else if (lowerContent.includes(lowerSearchTerm)) {
+          score = 10;
+        }
+        
+        console.log(`  "${p.name}" - 分数: ${score}`);
+        return { ...p, score };
+      })
+      // 按分数降序排序（分数高的在前）
+      .sort((a, b) => b.score - a.score);
+    
+    console.log('📊 排序后的结果:');
+    searchResults.forEach((p, i) => console.log(`  ${i+1}. "${p.name}" (分数: ${p.score})`));
     
     if (searchResults.length === 0) {
       const noResultsDiv = document.createElement('div');
