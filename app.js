@@ -175,9 +175,27 @@ document.addEventListener('DOMContentLoaded', function() {
         transition: color 0.2s;
       `;
       pinButton.innerHTML = '⬆︎';
+      
+      // 双击检测
+      let clickCount = 0;
+      let clickTimer = null;
+      
       pinButton.addEventListener('click', function(e) {
         e.stopPropagation();
-        pinMode(mode.id);
+        clickCount++;
+        
+        if (clickCount === 1) {
+          clickTimer = setTimeout(() => {
+            // 单击：向上移动一位
+            pinMode(mode.id);
+            clickCount = 0;
+          }, 250);
+        } else if (clickCount === 2) {
+          // 双击：移动到最顶部
+          clearTimeout(clickTimer);
+          pinModeToTop(mode.id);
+          clickCount = 0;
+        }
       });
       
       pinButton.addEventListener('mouseenter', () => {
@@ -318,9 +336,27 @@ document.addEventListener('DOMContentLoaded', function() {
       const pinButton = document.createElement('div');
       pinButton.className = 'pinned-button';
       pinButton.innerHTML = '⬆︎';
+      
+      // 双击检测
+      let clickCount = 0;
+      let clickTimer = null;
+      
       pinButton.addEventListener('click', function(e) {
         e.stopPropagation();
-        pinPrompt(prompt.id);
+        clickCount++;
+        
+        if (clickCount === 1) {
+          clickTimer = setTimeout(() => {
+            // 单击：向上移动一位
+            pinPrompt(prompt.id);
+            clickCount = 0;
+          }, 250);
+        } else if (clickCount === 2) {
+          // 双击：移动到最顶部
+          clearTimeout(clickTimer);
+          pinPromptToTop(prompt.id);
+          clickCount = 0;
+        }
       });
       
       const promptInfo = document.createElement('div');
@@ -1087,6 +1123,41 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  function pinPromptToTop(id) {
+    storage.local.get('prompts').then(data => {
+      const prompts = data.prompts || [];
+      
+      const currentModePrompts = [];
+      prompts.forEach((prompt, index) => {
+        if ((prompt.modeId || 'default') === currentMode.id) {
+          currentModePrompts.push({ prompt, globalIndex: index });
+        }
+      });
+      
+      const currentModeIndex = currentModePrompts.findIndex(item => item.prompt.id === id);
+      
+      if (currentModeIndex > 0) {
+        const currentItem = currentModePrompts[currentModeIndex];
+        
+        // 找到当前模式的第一个提示词的位置
+        const firstItemGlobalIndex = currentModePrompts[0].globalIndex;
+        
+        // 移除当前提示词
+        const movedPrompt = prompts.splice(currentItem.globalIndex, 1)[0];
+        
+        // 插入到第一个位置
+        prompts.splice(firstItemGlobalIndex, 0, movedPrompt);
+        
+        storage.local.set({ prompts: prompts }).then(() => {
+          showToast('提示词已置顶');
+          loadPrompts();
+        });
+      } else {
+        showToast('已经是当前模式的第一个提示词');
+      }
+    });
+  }
+
   function pinMode(id) {
     const index = modes.findIndex(m => m.id === id);
     
@@ -1097,6 +1168,21 @@ document.addEventListener('DOMContentLoaded', function() {
       
       storage.local.set({ modes: modes }).then(() => {
         showToast('模式已上移');
+        renderModeDropdown();
+      });
+    }
+  }
+
+  function pinModeToTop(id) {
+    const index = modes.findIndex(m => m.id === id);
+    
+    if (index > 0) {
+      const mode = modes[index];
+      modes.splice(index, 1);
+      modes.unshift(mode);
+      
+      storage.local.set({ modes: modes }).then(() => {
+        showToast('模式已置顶');
         renderModeDropdown();
       });
     }
