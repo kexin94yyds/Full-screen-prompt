@@ -511,6 +511,19 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  // 循环切换模式（direction: 1 下一项，-1 上一项）
+  function cycleMode(direction = 1) {
+    if (!Array.isArray(modes) || modes.length === 0) return;
+    // 只有一个模式时不做任何事
+    if (modes.length === 1) return;
+    const curIndex = Math.max(0, modes.findIndex(m => m.id === (currentMode && currentMode.id)));
+    const nextIndex = (curIndex + direction + modes.length) % modes.length;
+    const nextMode = modes[nextIndex];
+    if (!nextMode || nextMode.id === (currentMode && currentMode.id)) return;
+    switchMode(nextMode);
+    try { showToast(`已切换到模式：${nextMode.name}`); } catch (_) {}
+  }
+
   function editMode(mode) {
     const modeItems = document.querySelectorAll('.mode-dropdown-item:not(.add-mode-item)');
     let targetModeItem = null;
@@ -1330,6 +1343,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!listView.classList.contains('active')) return;
 
     if (importDialog && importDialog.style && importDialog.style.display === 'flex') {
+      return;
+    }
+
+    // Tab/Shift+Tab 切换 Mode（仅在列表视图、下拉未展开时生效）
+    if (e.key === 'Tab' && !modeDropdown.classList.contains('active')) {
+      e.preventDefault();
+      cycleMode(e.shiftKey ? -1 : 1);
       return;
     }
 

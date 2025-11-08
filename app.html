@@ -88,13 +88,15 @@
     
     .content-wrapper {
       flex: 1;
-      overflow-y: auto;
-      overflow-x: hidden;
+      /* 仅让列表区域滚动，容器本身不滚动 */
+      overflow: hidden;
       background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 16px;
       box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
     }
     
     .search-container { margin-bottom: 10px; }
@@ -297,6 +299,25 @@
     /* 编辑视图：简洁样式 */
     #editor-view.view { display: none; }
     #editor-view.view.active { display: block; padding: 10px; }
+
+    /* 列表视图占满容器，只有搜索框以下区域滚动 */
+    #list-view.view {
+      display: none;
+    }
+    #list-view.view.active {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0; /* 允许子项正确收缩并滚动 */
+      overflow: hidden; /* 防止容器本身滚动 */
+    }
+    #prompts-list {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      min-height: 0;
+      -webkit-overflow-scrolling: touch; /* iOS 平滑滚动 */
+    }
     
     #editor-view #prompt-name {
       border: 2px solid #000;

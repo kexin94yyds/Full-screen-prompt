@@ -221,13 +221,15 @@ async function toggleWindow() {
 app.whenReady().then(() => {
   createWindow();
 
-  // 注册全局快捷键 Shift+Cmd+O
-  const ret = globalShortcut.register('Shift+CommandOrControl+O', () => {
+  // 注册全局快捷键 Shift+Cmd+P（呼出面板）
+  const ret = globalShortcut.register('Shift+CommandOrControl+P', () => {
     toggleWindow();
   });
 
   if (!ret) {
-    console.log('快捷键注册失败（可能已有旧实例在运行）');
+    console.log('⚠️ 快捷键 Shift+Cmd+P 注册失败（可能已被其他应用占用）');
+  } else {
+    console.log('✅ 快捷键 Shift+Cmd+P 注册成功');
   }
 
   // 在 macOS 上，当所有窗口关闭时应用不会退出
