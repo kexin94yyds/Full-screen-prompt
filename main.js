@@ -16,6 +16,20 @@ let mainWindow = null;
 let lastShowAt = 0; // 记录最近一次显示时间，用于忽略刚显示时的 blur
 let lastFrontAppName = null; // 记录唤起窗口前的前台应用名称
 
+// 只记录非自身/非裸 Electron 的前台应用，避免粘贴回调到错误窗口
+function rememberFrontAppName(name) {
+  if (!name) {
+    lastFrontAppName = null;
+    return;
+  }
+  const selfNames = [
+    app.getName ? app.getName() : null,
+    'Prompter', // 打包后显示的产品名
+    'Electron'  // 开发/裸 Electron 环境
+  ].filter(Boolean);
+  lastFrontAppName = selfNames.includes(name) ? null : name;
+}
+
 // 判断是否为 macOS TCC 无辅助功能权限（1002）错误
 function isTccDeniedError(err) {
   const msg = String((err && (err.stderr || err.message)) || '');
@@ -25,7 +39,7 @@ function isTccDeniedError(err) {
 // 打开系统“隐私与安全性 > 辅助功能”设置页（尽量兼容不同版本）
 function openAccessibilityPane() {
   // 方式一：通过 x-apple 链接直接打开对应设置页
-  try { exec('open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"'); } catch (_) {}
+  try { exec('open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"'); } catch (_) { }
   // 方式二：回退到 AppleScript 定位到隐私-辅助功能（兼容不同系统版本）
   setTimeout(() => {
     const osaScript = `
@@ -42,7 +56,7 @@ tell application "System Preferences"
 end tell
 end try
 `.trim();
-    try { exec(`osascript -e '${osaScript}'`); } catch (_) {}
+    try { exec(`osascript -e '${osaScript}'`); } catch (_) { }
   }, 150);
 }
 
@@ -100,7 +114,7 @@ function activateAppByName(name) {
 function createWindow() {
   // 获取屏幕尺寸（主显示器）
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-  
+
   mainWindow = new BrowserWindow({
     width: 360,
     height: 580,
@@ -126,7 +140,39 @@ function createWindow() {
   // 不额外设置层级/工作区，让窗口保持默认行为（显示时再动态调整）
 
   // 加载主界面
-  mainWindow.loadFile('app.html');
+  // 在开发环境中，文件在项目根目录
+  // 在打包后，文件在 app.asar 中，loadFile 可以直接访问 asar 内的文件
+  // 使用相对于 main.js 的路径（main.js 和 app.html 在同一目录）
+  const htmlPath = path.join(__dirname, 'app.html');
+
+  // 调试信息（开发时有用）
+  if (!app.isPackaged) {
+    console.log('Development mode - Loading HTML from:', htmlPath);
+    console.log('__dirname:', __dirname);
+  }
+
+  // loadFile 会自动处理 asar 内的文件
+  mainWindow.loadFile(htmlPath).catch((err) => {
+    console.error('Failed to load app.html:', err);
+    console.error('__dirname:', __dirname);
+    console.error('app.getAppPath():', app.getAppPath());
+
+    // 如果主路径失败，尝试使用 app.getAppPath()
+    const fallbackPath = path.join(app.getAppPath(), 'app.html');
+    console.log('Trying fallback path:', fallbackPath);
+    mainWindow.loadFile(fallbackPath).catch((fallbackErr) => {
+      console.error('Fallback also failed:', fallbackErr);
+      // 显示错误对话框
+      dialog.showErrorBox(
+        '加载失败',
+        `无法加载应用界面\n\n` +
+        `原始路径: ${htmlPath}\n` +
+        `备用路径: ${fallbackPath}\n` +
+        `错误: ${err.message}\n\n` +
+        `请检查文件是否存在。`
+      );
+    });
+  });
 
   // 窗口关闭时隐藏而不是退出
   mainWindow.on('close', (event) => {
@@ -138,7 +184,18 @@ function createWindow() {
 
   // 当窗口准备显示时才显示，避免闪烁
   mainWindow.once('ready-to-show', () => {
+    console.log('Window is ready to show');
     // 不自动显示，等待快捷键触发
+  });
+
+  // 监听页面加载完成事件
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('Page finished loading');
+  });
+
+  // 监听页面加载失败事件
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error('Page failed to load:', errorCode, errorDescription, validatedURL);
   });
 
   // 失去焦点时隐藏窗口
@@ -162,7 +219,8 @@ function createWindow() {
 async function showOnActiveSpace() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   // 记录唤起窗口前的前台应用
-  try { lastFrontAppName = await getFrontmostAppName(); } catch (_) {}
+  lastFrontAppName = null;
+  try { rememberFrontAppName(await getFrontmostAppName()); } catch (_) { }
 
   const cursorPoint = screen.getCursorScreenPoint();
   const display = screen.getDisplayNearestPoint(cursorPoint);
@@ -173,18 +231,19 @@ async function showOnActiveSpace() {
   mainWindow.setPosition(targetX, targetY);
 
   // 临时在所有工作区可见（含全屏），避免跳回旧 Space
-  try { mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
+  try { mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) { }
   // 层级拉高，覆盖全屏
-  try { mainWindow.setAlwaysOnTop(true, 'screen-saver'); } catch (_) {}
+  try { mainWindow.setAlwaysOnTop(true, 'screen-saver'); } catch (_) { }
 
   mainWindow.show();
   mainWindow.focus();
   lastShowAt = Date.now();
 
-  // 稍后还原，仅在当前 Space 可见
-  setTimeout(() => {
-    try { mainWindow.setVisibleOnAllWorkspaces(false); } catch (_) {}
-  }, 200);
+  // 🔑 关键修复：不再还原工作区可见性
+  // 之前 200ms 后调用 setVisibleOnAllWorkspaces(false) 会导致窗口在全屏应用前面来回跳动
+  // 因为这会让窗口回到原来的 Space，而不是停留在当前全屏应用的 Space
+  // 保持 setVisibleOnAllWorkspaces(true) 可以让窗口始终覆盖在当前 Space（包括全屏应用）
+  console.log('[SHOW_WINDOW] 保持窗口在所有工作区可见（避免全屏应用前跳动）');
 
   // 安全地发送消息，检查窗口状态
   if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
@@ -219,6 +278,9 @@ async function toggleWindow() {
 
 // 当 Electron 完成初始化后创建窗口
 app.whenReady().then(() => {
+  console.log('Electron app is ready');
+  console.log('App path:', app.getAppPath());
+  console.log('Is packaged:', app.isPackaged);
   createWindow();
 
   // 注册全局快捷键 Shift+Cmd+P（呼出面板）
@@ -348,7 +410,7 @@ ipcMain.handle('open-external', async (event, url) => {
 
 // 模拟粘贴操作（使用 AppleScript 在 macOS 上模拟 Cmd+V）
 ipcMain.handle('paste-text', async () => {
-  
+
   return new Promise((resolve, reject) => {
     // 在 macOS 上使用 osascript 模拟 Cmd+V 快捷键
     if (process.platform === 'darwin') {
@@ -357,12 +419,14 @@ ipcMain.handle('paste-text', async () => {
           keystroke "v" using command down
         end tell
       `;
-      
-      exec(`osascript -e '${script}'`, async (error, stdout, stderr) => {
+
+      // 打包后的 GUI 应用没有 PATH，直接调用 "osascript" 可能找不到命令
+      // 使用绝对路径 /usr/bin/osascript 更稳定
+      exec(`/usr/bin/osascript -e '${script}'`, async (error, stdout, stderr) => {
         if (error) {
           console.error('粘贴失败:', error);
           if (isTccDeniedError(error)) {
-            try { await promptAccessibilityOnce(); } catch (_) {}
+            try { await promptAccessibilityOnce(); } catch (_) { }
           }
           reject(error);
         } else {
@@ -396,11 +460,13 @@ ipcMain.handle('insert-and-paste', async (event, text) => {
         tell application "System Events" to keystroke "v" using command down
       `
       : `tell application "System Events" to keystroke "v" using command down`;
-    exec(`osascript -e '${script}'`, async (error) => {
+
+    // 同样改为使用绝对路径，避免打包后 PATH 丢失导致找不到 osascript
+    exec(`/usr/bin/osascript -e '${script}'`, async (error, stdout, stderr) => {
       if (error) {
         console.error('粘贴失败:', error);
         if (isTccDeniedError(error)) {
-          try { await promptAccessibilityOnce(); } catch (_) {}
+          try { await promptAccessibilityOnce(); } catch (_) { }
         }
         reject(error);
       } else {
