@@ -215,7 +215,6 @@ function createWindow() {
   });
 }
 
-// 在当前活动 Space/全屏上显示，并跟随鼠标所在显示器
 async function showOnActiveSpace() {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   // 记录唤起窗口前的前台应用
@@ -253,27 +252,16 @@ async function showOnActiveSpace() {
       // 忽略发送错误，避免崩溃
     }
   }
-}
 
-// 切换窗口显示/隐藏
-async function toggleWindow() {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    createWindow();
-    return;
-  }
-
-  try {
-    if (mainWindow.isVisible()) {
-      mainWindow.hide();
-    } else {
-      await showOnActiveSpace();
-    }
-  } catch (err) {
-    // 如果窗口已销毁，重新创建
-    if (mainWindow.isDestroyed()) {
-      createWindow();
-    }
-  }
+  // 在短暂延时后恢复工作区可见性设置，避免后续桌面切换时被系统强制带回旧 Space
+  setTimeout(() => {
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        try { mainWindow.setVisibleOnAllWorkspaces(false, { visibleOnFullScreen: true }); } catch (_) { }
+        try { mainWindow.setAlwaysOnTop(true, 'floating'); } catch (_) { }
+      }
+    } catch (_) { }
+  }, 300);
 }
 
 // 当 Electron 完成初始化后创建窗口
@@ -285,7 +273,11 @@ app.whenReady().then(() => {
 
   // 注册全局快捷键 Shift+Cmd+P（呼出面板）
   const ret = globalShortcut.register('Shift+CommandOrControl+P', () => {
-    toggleWindow();
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+      mainWindow.hide();
+    } else {
+      showOnActiveSpace();
+    }
   });
 
   if (!ret) {
@@ -299,7 +291,11 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     } else {
-      toggleWindow();
+      if (!mainWindow.isVisible()) {
+        showOnActiveSpace();
+      } else {
+        mainWindow.focus();
+      }
     }
   });
 });
