@@ -34,11 +34,11 @@
       position: fixed;
       top: 0;
       bottom: 0;
-      width: 12px;
+      width: 10px;
       -webkit-app-region: drag;
       z-index: 9999;
+      /* 完全透明但可交互 */
       background: transparent;
-      cursor: grab;
     }
     .window-drag-edge.left { left: 0; }
     .window-drag-edge.right { right: 0; }
@@ -47,23 +47,26 @@
       top: 0;
       left: 0;
       right: 0;
-      height: 12px;
+      height: 10px;
       -webkit-app-region: drag;
       z-index: 9999;
       background: transparent;
-      cursor: grab;
     }
-    .window-drag-bottom {
+    
+    /* 边缘调整大小区域 - 增大触发区域 */
+    .resize-handle {
       position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 12px;
-      -webkit-app-region: drag;
-      z-index: 9999;
+      z-index: 10000;
       background: transparent;
-      cursor: grab;
     }
+    .resize-handle.top { top: 0; left: 12px; right: 12px; height: 8px; cursor: ns-resize; }
+    .resize-handle.bottom { bottom: 0; left: 12px; right: 12px; height: 8px; cursor: ns-resize; }
+    .resize-handle.left { left: 0; top: 12px; bottom: 12px; width: 8px; cursor: ew-resize; }
+    .resize-handle.right { right: 0; top: 12px; bottom: 12px; width: 8px; cursor: ew-resize; }
+    .resize-handle.top-left { top: 0; left: 0; width: 16px; height: 16px; cursor: nwse-resize; }
+    .resize-handle.top-right { top: 0; right: 0; width: 16px; height: 16px; cursor: nesw-resize; }
+    .resize-handle.bottom-left { bottom: 0; left: 0; width: 16px; height: 16px; cursor: nesw-resize; }
+    .resize-handle.bottom-right { bottom: 0; right: 0; width: 16px; height: 16px; cursor: nwse-resize; }
     
     .header {
       display: flex;
@@ -587,11 +590,20 @@
   </style>
 </head>
 <body>
-  <!-- 边缘拖拽区域：靠近边缘时可拖动窗口 -->
-  <div class="window-drag-edge left" data-tauri-drag-region></div>
-  <div class="window-drag-edge right" data-tauri-drag-region></div>
-  <div class="window-drag-top" data-tauri-drag-region></div>
-  <div class="window-drag-bottom" data-tauri-drag-region></div>
+  <!-- 边缘拖拽区域：靠近左右与顶部时可拖动窗口 -->
+  <div class="window-drag-edge left"></div>
+  <div class="window-drag-edge right"></div>
+  
+  <!-- 边缘调整大小区域 -->
+  <div class="resize-handle top" data-resize="top"></div>
+  <div class="resize-handle bottom" data-resize="bottom"></div>
+  <div class="resize-handle left" data-resize="left"></div>
+  <div class="resize-handle right" data-resize="right"></div>
+  <div class="resize-handle top-left" data-resize="top-left"></div>
+  <div class="resize-handle top-right" data-resize="top-right"></div>
+  <div class="resize-handle bottom-left" data-resize="bottom-left"></div>
+  <div class="resize-handle bottom-right" data-resize="bottom-right"></div>
+  <div class="window-drag-top"></div>
 
   <!-- 顶部自定义标题和快捷提示已移除，避免重复的系统标题栏与冗余信息 -->
   

@@ -139,6 +139,45 @@
 
     // 初始化
     setupShortcut();
+    
+    // 设置边缘调整大小功能
+    function setupResizeHandles() {
+      const resizeMap = {
+        'top': 'North',
+        'bottom': 'South',
+        'left': 'West',
+        'right': 'East',
+        'top-left': 'NorthWest',
+        'top-right': 'NorthEast',
+        'bottom-left': 'SouthWest',
+        'bottom-right': 'SouthEast'
+      };
+      
+      document.querySelectorAll('.resize-handle').forEach(handle => {
+        handle.addEventListener('mousedown', async (e) => {
+          e.preventDefault();
+          const direction = handle.dataset.resize;
+          const tauriDirection = resizeMap[direction];
+          
+          if (tauriDirection && getCurrentWindow) {
+            try {
+              const win = getCurrentWindow();
+              await win.startResizing(tauriDirection);
+            } catch (err) {
+              console.error('[Adapter] Resize failed:', err);
+            }
+          }
+        });
+      });
+      console.log('[Adapter] Resize handles initialized');
+    }
+    
+    // DOM 加载完成后初始化
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setupResizeHandles);
+    } else {
+      setupResizeHandles();
+    }
 
   } else if (isElectron) {
     console.log('[Adapter] Running in Electron environment');
