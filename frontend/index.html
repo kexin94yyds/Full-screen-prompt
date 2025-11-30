@@ -34,11 +34,11 @@
       position: fixed;
       top: 0;
       bottom: 0;
-      width: 10px;
+      width: 12px;
       -webkit-app-region: drag;
       z-index: 9999;
-      /* 完全透明但可交互 */
       background: transparent;
+      cursor: grab;
     }
     .window-drag-edge.left { left: 0; }
     .window-drag-edge.right { right: 0; }
@@ -47,10 +47,22 @@
       top: 0;
       left: 0;
       right: 0;
-      height: 10px;
+      height: 12px;
       -webkit-app-region: drag;
       z-index: 9999;
       background: transparent;
+      cursor: grab;
+    }
+    .window-drag-bottom {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 12px;
+      -webkit-app-region: drag;
+      z-index: 9999;
+      background: transparent;
+      cursor: grab;
     }
     
     .header {
@@ -575,10 +587,11 @@
   </style>
 </head>
 <body>
-  <!-- 边缘拖拽区域：靠近左右与顶部时可拖动窗口 -->
-  <div class="window-drag-edge left"></div>
-  <div class="window-drag-edge right"></div>
-  <div class="window-drag-top"></div>
+  <!-- 边缘拖拽区域：靠近边缘时可拖动窗口 -->
+  <div class="window-drag-edge left" data-tauri-drag-region></div>
+  <div class="window-drag-edge right" data-tauri-drag-region></div>
+  <div class="window-drag-top" data-tauri-drag-region></div>
+  <div class="window-drag-bottom" data-tauri-drag-region></div>
 
   <!-- 顶部自定义标题和快捷提示已移除，避免重复的系统标题栏与冗余信息 -->
   

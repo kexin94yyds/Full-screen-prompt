@@ -43,51 +43,15 @@ mod macos {
         unsafe { AXIsProcessTrusted() }
     }
 
-    use std::sync::atomic::{AtomicI32, Ordering};
-    
-    // 存储之前应用的 PID（与 ClipBook 的 active_app_pid_ 相同）
-    static PREVIOUS_APP_PID: AtomicI32 = AtomicI32::new(0);
-    
-    /// 记录当前前台应用的 PID（在显示窗口前调用）
+    /// 记录当前前台应用（空实现，激活由系统自动处理）
     pub fn save_frontmost_app_pid() {
-        use objc::{msg_send, sel, sel_impl, class};
-        
-        unsafe {
-            let workspace: cocoa::base::id = msg_send![class!(NSWorkspace), sharedWorkspace];
-            let front_app: cocoa::base::id = msg_send![workspace, frontmostApplication];
-            if front_app != cocoa::base::nil {
-                let pid: i32 = msg_send![front_app, processIdentifier];
-                PREVIOUS_APP_PID.store(pid, Ordering::SeqCst);
-            }
-        }
+        // 不需要记录，隐藏窗口后系统会自动激活之前的应用
     }
     
-    /// 激活之前记录的应用（通过 PID，与 ClipBook 相同）
+    /// 激活之前的应用（等待系统自动激活）
     pub fn activate_previous_app() {
-        use objc::{msg_send, sel, sel_impl, class};
-        
-        let pid = PREVIOUS_APP_PID.load(Ordering::SeqCst);
-        if pid == 0 {
-            return;
-        }
-        
-        unsafe {
-            let workspace: cocoa::base::id = msg_send![class!(NSWorkspace), sharedWorkspace];
-            let running_apps: cocoa::base::id = msg_send![workspace, runningApplications];
-            let count: usize = msg_send![running_apps, count];
-            
-            for i in 0..count {
-                let app: cocoa::base::id = msg_send![running_apps, objectAtIndex:i];
-                let app_pid: i32 = msg_send![app, processIdentifier];
-                if app_pid == pid {
-                    // NSApplicationActivateIgnoringOtherApps = 2
-                    let _: () = msg_send![app, activateWithOptions:2u64];
-                    break;
-                }
-            }
-        }
-        
-        // 等待 150ms 让目标应用处理激活（与 ClipBook 相同）
+        // 隐藏窗口后系统会自动激活之前的应用
+        // 只需要等待足够的时间让系统完成激活
         thread::sleep(Duration::from_millis(150));
     }
 }
