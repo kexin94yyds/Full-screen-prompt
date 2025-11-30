@@ -22,6 +22,7 @@
       height: 100vh;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
       padding: 16px;
+      padding-top: 24px; /* 为顶部拖拽区域留出空间 */
       background: var(--bg);
       overflow: hidden;
       display: flex;
@@ -47,10 +48,31 @@
       top: 0;
       left: 0;
       right: 0;
-      height: 10px;
-      -webkit-app-region: drag;
+      height: 28px;
       z-index: 9999;
       background: transparent;
+      cursor: grab;
+    }
+    .window-drag-top:active {
+      cursor: grabbing;
+    }
+    
+    /* 可拖拽标题栏样式 */
+    .drag-bar {
+      position: fixed;
+      top: 6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 40px;
+      height: 5px;
+      background: rgba(0, 0, 0, 0.15);
+      border-radius: 3px;
+      z-index: 10000;
+      cursor: grab;
+    }
+    .drag-bar:active {
+      cursor: grabbing;
+      background: rgba(0, 0, 0, 0.25);
     }
     
     /* 边缘调整大小区域 - 增大触发区域 */
@@ -604,6 +626,7 @@
   <div class="resize-handle bottom-left" data-resize="bottom-left"></div>
   <div class="resize-handle bottom-right" data-resize="bottom-right"></div>
   <div class="window-drag-top"></div>
+  <div class="drag-bar"></div>
 
   <!-- 顶部自定义标题和快捷提示已移除，避免重复的系统标题栏与冗余信息 -->
   

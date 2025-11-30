@@ -172,11 +172,45 @@
       console.log('[Adapter] Resize handles initialized');
     }
     
+    // 设置窗口拖拽功能（Tauri 2.0 需要使用 startDragging API）
+    function setupDragHandles() {
+      const dragElements = document.querySelectorAll('.window-drag-edge, .window-drag-top, .drag-bar, .draggable');
+      
+      dragElements.forEach(el => {
+        el.addEventListener('mousedown', async (e) => {
+          // 只响应左键
+          if (e.button !== 0) return;
+          
+          // 检查是否点击了可交互元素
+          const target = e.target;
+          if (target.closest('button, input, textarea, select, a, [data-no-drag]')) {
+            return;
+          }
+          
+          e.preventDefault();
+          
+          try {
+            const win = getCurrentWindow();
+            if (win && typeof win.startDragging === 'function') {
+              await win.startDragging();
+            }
+          } catch (err) {
+            console.error('[Adapter] Drag failed:', err);
+          }
+        });
+      });
+      console.log('[Adapter] Drag handles initialized, count:', dragElements.length);
+    }
+    
     // DOM 加载完成后初始化
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', setupResizeHandles);
+      document.addEventListener('DOMContentLoaded', () => {
+        setupResizeHandles();
+        setupDragHandles();
+      });
     } else {
       setupResizeHandles();
+      setupDragHandles();
     }
 
   } else if (isElectron) {
