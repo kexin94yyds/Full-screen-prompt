@@ -1,4 +1,4 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, screen, dialog } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, screen, dialog, systemPreferences } = require('electron');
 const Store = require('electron-store');
 const path = require('path');
 const { exec } = require('child_process');
@@ -28,6 +28,12 @@ function rememberFrontAppName(name) {
     'Electron'  // 开发/裸 Electron 环境
   ].filter(Boolean);
   lastFrontAppName = selfNames.includes(name) ? null : name;
+}
+
+// 检查辅助功能权限（macOS）
+function checkAccessibilityPermission() {
+  if (process.platform !== 'darwin') return true;
+  return systemPreferences.isTrustedAccessibilityClient(false);
 }
 
 // 判断是否为 macOS TCC 无辅助功能权限（1002）错误
@@ -404,63 +410,12 @@ ipcMain.handle('open-external', async (event, url) => {
   return true;
 });
 
-// 模拟粘贴操作（使用 AppleScript 在 macOS 上模拟 Cmd+V）
-ipcMain.handle('paste-text', async () => {
-
+// 使用 AppleScript 模拟 Cmd+V
+function simulatePaste() {
   return new Promise((resolve, reject) => {
-    // 在 macOS 上使用 osascript 模拟 Cmd+V 快捷键
-    if (process.platform === 'darwin') {
-      const script = `
-        tell application "System Events"
-          keystroke "v" using command down
-        end tell
-      `;
-
-      // 打包后的 GUI 应用没有 PATH，直接调用 "osascript" 可能找不到命令
-      // 使用绝对路径 /usr/bin/osascript 更稳定
-      exec(`/usr/bin/osascript -e '${script}'`, async (error, stdout, stderr) => {
-        if (error) {
-          console.error('粘贴失败:', error);
-          if (isTccDeniedError(error)) {
-            try { await promptAccessibilityOnce(); } catch (_) { }
-          }
-          reject(error);
-        } else {
-          resolve(true);
-        }
-      });
-    } else {
-      // 其他平台暂不支持
-      reject(new Error('当前平台不支持自动粘贴'));
-    }
-  });
-});
-
-// 一步完成：写入剪贴板 -> 隐藏窗口 -> 等待窗口隐藏 -> 模拟 Cmd+V
-ipcMain.handle('insert-and-paste', async (event, text) => {
-  const { clipboard } = require('electron');
-
-  if (process.platform !== 'darwin') {
-    throw new Error('当前平台不支持自动粘贴');
-  }
-
-  clipboard.writeText(text);
-
-  // 合并“激活原前台应用 + 粘贴”为一次 AppleScript 调用，减少进程开销
-  const pasteCombined = () => new Promise((resolve, reject) => {
-    const appName = (lastFrontAppName || '').replace(/"/g, '\\"');
-    const script = lastFrontAppName
-      ? `
-        tell application "${appName}" to activate
-        delay 0.06
-        tell application "System Events" to keystroke "v" using command down
-      `
-      : `tell application "System Events" to keystroke "v" using command down`;
-
-    // 同样改为使用绝对路径，避免打包后 PATH 丢失导致找不到 osascript
-    exec(`/usr/bin/osascript -e '${script}'`, async (error, stdout, stderr) => {
+    const script = `tell application "System Events" to keystroke "v" using command down`;
+    exec(`/usr/bin/osascript -e '${script}'`, async (error) => {
       if (error) {
-        console.error('粘贴失败:', error);
         if (isTccDeniedError(error)) {
           try { await promptAccessibilityOnce(); } catch (_) { }
         }
@@ -470,19 +425,67 @@ ipcMain.handle('insert-and-paste', async (event, text) => {
       }
     });
   });
+}
 
-  // 如果窗口可见，等隐藏后再粘贴，确保前台焦点回到原应用
+// 模拟粘贴操作
+ipcMain.handle('paste-text', async () => {
+  if (process.platform !== 'darwin') {
+    throw new Error('当前平台不支持自动粘贴');
+  }
+
+  // 先检查权限
+  if (!checkAccessibilityPermission()) {
+    await promptAccessibilityOnce();
+    throw new Error('需要辅助功能权限');
+  }
+
+  return simulatePaste();
+});
+
+// 一步完成：写入剪贴板 -> 隐藏窗口 -> 激活目标应用 -> 模拟 Cmd+V
+ipcMain.handle('insert-and-paste', async (event, text) => {
+  const { clipboard } = require('electron');
+
+  if (process.platform !== 'darwin') {
+    throw new Error('当前平台不支持自动粘贴');
+  }
+
+  // 先检查权限
+  if (!checkAccessibilityPermission()) {
+    await promptAccessibilityOnce();
+    throw new Error('需要辅助功能权限');
+  }
+
+  // 写入剪贴板
+  clipboard.writeText(text);
+
+  // 执行粘贴的核心逻辑（类似 ClipBook 的流程）
+  const doPaste = async () => {
+    // 1. 激活目标应用（如果有记录）
+    if (lastFrontAppName) {
+      await activateAppByName(lastFrontAppName);
+      // 等待应用激活（类似 ClipBook 的 150ms）
+      await new Promise(r => setTimeout(r, 100));
+    }
+
+    // 2. 使用 AppleScript 发送 Cmd+V
+    return simulatePaste();
+  };
+
+  // 如果窗口可见，先隐藏再粘贴
   if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
     return new Promise((resolve, reject) => {
-      const doPaste = () => {
-        // 隐藏完成后立刻执行合并脚本（内部自带极短 delay）
-        pasteCombined().then(resolve).catch(reject);
+      const onHide = () => {
+        // 短暂等待窗口完全隐藏
+        setTimeout(() => {
+          doPaste().then(resolve).catch(reject);
+        }, 50);
       };
-      mainWindow.once('hide', doPaste);
-      try { mainWindow.hide(); } catch (_) { doPaste(); }
+      mainWindow.once('hide', onHide);
+      try { mainWindow.hide(); } catch (_) { onHide(); }
     });
   }
 
-  // 窗口不可见：直接执行合并脚本
-  return pasteCombined();
+  // 窗口不可见：直接粘贴
+  return doPaste();
 });

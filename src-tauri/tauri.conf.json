@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Prompter",
+  "version": "2.0.0",
+  "identifier": "com.prompter.desktop",
+  "build": {
+    "frontendDist": "../frontend"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Prompter",
+        "label": "main",
+        "width": 360,
+        "height": 580,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": false,
+        "transparent": false,
+        "alwaysOnTop": true,
+        "visible": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "macOSPrivateApi": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "app"],
+    "icon": [
+      "icons/icon.icns"
+    ],
+    "category": "Productivity",
+    "macOS": {
+      "entitlements": null,
+      "minimumSystemVersion": "10.15"
+    }
+  },
+  "plugins": {}
+}
