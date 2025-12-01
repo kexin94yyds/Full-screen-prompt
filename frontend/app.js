@@ -24,6 +24,132 @@ const clipboard = {
   }
 };
 
+// 自定义确认对话框
+function showConfirmDialog(message, onConfirm, onCancel) {
+  // 移除已存在的对话框
+  const existingDialog = document.getElementById('custom-confirm-dialog');
+  if (existingDialog) {
+    existingDialog.remove();
+  }
+  
+  const overlay = document.createElement('div');
+  overlay.id = 'custom-confirm-dialog';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+  `;
+  
+  const dialog = document.createElement('div');
+  dialog.style.cssText = `
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  `;
+  
+  const messageEl = document.createElement('p');
+  messageEl.style.cssText = `
+    margin: 0 0 20px 0;
+    font-size: 15px;
+    line-height: 1.5;
+    color: #333;
+    white-space: pre-line;
+  `;
+  messageEl.textContent = message;
+  
+  const buttonContainer = document.createElement('div');
+  buttonContainer.style.cssText = `
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  `;
+  
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = '取消';
+  cancelBtn.style.cssText = `
+    padding: 8px 20px;
+    background: #f5f5f5;
+    color: #666;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  `;
+  cancelBtn.addEventListener('mouseenter', () => {
+    cancelBtn.style.background = '#ebebeb';
+  });
+  cancelBtn.addEventListener('mouseleave', () => {
+    cancelBtn.style.background = '#f5f5f5';
+  });
+  
+  const confirmBtn = document.createElement('button');
+  confirmBtn.textContent = '确定';
+  confirmBtn.style.cssText = `
+    padding: 8px 20px;
+    background: #ff4757;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(255, 71, 87, 0.3);
+  `;
+  confirmBtn.addEventListener('mouseenter', () => {
+    confirmBtn.style.background = '#ee3a4a';
+  });
+  confirmBtn.addEventListener('mouseleave', () => {
+    confirmBtn.style.background = '#ff4757';
+  });
+  
+  const closeDialog = () => {
+    overlay.remove();
+  };
+  
+  cancelBtn.addEventListener('click', () => {
+    closeDialog();
+    if (onCancel) onCancel();
+  });
+  
+  confirmBtn.addEventListener('click', () => {
+    closeDialog();
+    if (onConfirm) onConfirm();
+  });
+  
+  // ESC 关闭
+  const handleKeydown = (e) => {
+    if (e.key === 'Escape') {
+      closeDialog();
+      if (onCancel) onCancel();
+      document.removeEventListener('keydown', handleKeydown);
+    }
+  };
+  document.addEventListener('keydown', handleKeydown);
+  
+  buttonContainer.appendChild(cancelBtn);
+  buttonContainer.appendChild(confirmBtn);
+  dialog.appendChild(messageEl);
+  dialog.appendChild(buttonContainer);
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+  
+  // 聚焦确认按钮
+  setTimeout(() => confirmBtn.focus(), 50);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   // DOM元素
   const searchInput = document.getElementById('search-input');
@@ -648,7 +774,7 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     
-    if (confirm(`确定要删除模式 "${mode.name}" 吗？\n注意：该模式下的所有提示词也会被删除！`)) {
+    showConfirmDialog(`确定要删除模式 "${mode.name}" 吗？\n注意：该模式下的所有提示词也会被删除！`, () => {
       if (currentMode.id === mode.id) {
         const otherMode = modes.find(m => m.id !== mode.id);
         if (otherMode) {
@@ -673,7 +799,7 @@ document.addEventListener('DOMContentLoaded', function() {
           showToast(`模式 "${mode.name}" 及其相关提示词已删除`);
         });
       });
-    }
+    });
   }
 
   function editPrompt(prompt) {
@@ -730,7 +856,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   function deletePrompt(id) {
-    if (confirm('确定要删除这个提示词吗？')) {
+    showConfirmDialog('确定要删除这个提示词吗？', () => {
       storage.local.get('prompts').then(data => {
         const prompts = data.prompts || [];
         const updatedPrompts = prompts.filter(p => p.id !== id);
@@ -740,7 +866,7 @@ document.addEventListener('DOMContentLoaded', function() {
           loadPrompts();
         });
       });
-    }
+    });
   }
 
   cancelButton.addEventListener('click', function() {
@@ -964,6 +1090,22 @@ document.addEventListener('DOMContentLoaded', function() {
     importDialog.style.display = 'flex';
     importTextarea.value = '';
     setTimeout(() => importTextarea.focus(), 100);
+    
+    // Cmd+Enter 快捷键导入
+    const handleImportKeydown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        importPrompts();
+      }
+      if (e.key === 'Escape') {
+        hideImportDialog();
+      }
+    };
+    
+    // 移除旧监听器并添加新的
+    importTextarea.removeEventListener('keydown', importTextarea._importKeyHandler);
+    importTextarea._importKeyHandler = handleImportKeydown;
+    importTextarea.addEventListener('keydown', handleImportKeydown);
   }
 
   function hideImportDialog() {
@@ -1026,7 +1168,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function deleteAllPrompts() {
-    if (confirm(`确定要删除 "${currentMode.name}" 模式下的所有提示词吗？此操作不可恢复！`)) {
+    showConfirmDialog(`确定要删除 "${currentMode.name}" 模式下的所有提示词吗？\n此操作不可恢复！`, () => {
       storage.local.get('prompts').then(data => {
         const prompts = data.prompts || [];
         const updatedPrompts = prompts.filter(p => (p.modeId || 'default') !== currentMode.id);
@@ -1037,7 +1179,7 @@ document.addEventListener('DOMContentLoaded', function() {
           showToast(`"${currentMode.name}" 模式下的提示词已全部删除`);
         });
       });
-    }
+    });
   }
 
   function showToast(message) {
